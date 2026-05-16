@@ -165,6 +165,37 @@ per-utterance `compute=` time — read `snr` to judge mic quality:
 - Possible later: hands-free VAD mode instead of push-to-talk. PTT is
   the robust default for quiet speech — no false triggers.
 
+## Install via Homebrew (Linux)
+
+A personal tap is published at
+[`FactusConsulting/homebrew-tap`](https://github.com/FactusConsulting/homebrew-tap):
+
+```bash
+brew tap factusconsulting/tap
+brew install whisper-dictate
+whisper-dictate                 # same flags as voice_pi.py, e.g. --lang de
+```
+
+The formula installs the code + `setup.sh` and provides a
+`whisper-dictate` command; first run builds a machine-local venv and
+downloads the model (idempotent — later runs just launch).
+
+**Honest scope — Homebrew is delivery, not magic:**
+- **CPU only.** The brew install does **not** use a GPU (no NVIDIA
+  acceleration path through Homebrew). For NVIDIA speed, use the
+  `windows-nvidia` release bundle instead.
+- **Wayland limitation is unchanged.** `brew install` does not fix the
+  X11/Wayland input problem — global push-to-talk and auto-typing
+  (pynput) still won't work on GNOME/Wayland. Run under an Xorg
+  session, or `whisper-dictate --no-type`.
+- It's a **personal tap**, not homebrew-core (a GPU/ML Python app with
+  a runtime venv doesn't fit homebrew-core conventions). `brew` deps:
+  `python@3.12`, `portaudio`. A clipboard tool (`wl-clipboard`/`xclip`)
+  is still needed for `--paste`.
+
+How the tap is updated: bump `url`/`sha256` in
+`Formula/whisper-dictate.rb` to a new release tag (see Releasing).
+
 ## Releasing
 
 CI (`.github/workflows/release.yml`) cuts releases. Push a version tag:
