@@ -127,9 +127,13 @@ WantedBy=default.target
 SVCEOF
 
 systemctl --user daemon-reload
-systemctl --user enable --now ydotoold.service 2>/dev/null || true
+systemctl --user enable ydotoold.service 2>/dev/null || true
+# Genstart altid så GNOME registrerer det virtuelle tastatur med det
+# korrekte dk-layout (sat i step 4). Kørende daemon har gammel layout.
+systemctl --user restart ydotoold.service 2>/dev/null || systemctl --user start ydotoold.service 2>/dev/null || true
+sleep 1
 systemctl --user is-active ydotoold.service &>/dev/null \
-    && ok "ydotoold kører" \
+    && ok "ydotoold kører (XKB_DEFAULT_LAYOUT=dk)" \
     || warn "ydotoold startede ikke — prøv: systemctl --user start ydotoold"
 
 # ---------------------------------------------------------------------------
