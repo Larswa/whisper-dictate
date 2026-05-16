@@ -261,6 +261,21 @@ class Dictate:
             self._stream.start()
         print("● listening…", flush=True)
 
+    def _try_ydotool(self, *args: str) -> bool:
+        import subprocess, shutil
+        if not shutil.which("ydotool"):
+            return False
+        try:
+            r = subprocess.run(["ydotool", *args], capture_output=True, timeout=10)
+            if r.returncode != 0:
+                err = r.stderr.decode(errors="replace").strip()
+                if err:
+                    print(f"[ydotool] {err}", flush=True)
+            return r.returncode == 0
+        except Exception as e:
+            print(f"[ydotool] error: {e}", flush=True)
+            return False
+
     def _inject(self, text: str):
         # Small settle so the PTT key-up is processed and focus is
         # stable on the target window before we emit input.
@@ -268,16 +283,23 @@ class Dictate:
         if self.mode == "print":
             print(f"  (heard) {text}", flush=True)
             return
+        on_wayland = bool(os.environ.get('WAYLAND_DISPLAY'))
         if self.mode == "paste":
             import pyperclip
             pyperclip.copy(text)
+            # On Wayland, pynput's XWayland Ctrl+V never reaches Wayland-native
+            # windows. ydotool injects via uinput (kernel level) and works in
+            # all apps. Falls back to pynput for X11/Windows/macOS.
+            if on_wayland and self._try_ydotool("key", "ctrl+v"):
+                return
             self._kb.press(keyboard.Key.ctrl)
             self._kb.press("v")
             self._kb.release("v")
             self._kb.release(keyboard.Key.ctrl)
             return
-        # default: type the characters — universal, works in any focused
-        # text input without assuming a paste keybinding. Handles æøå.
+        # default: type characters. On Wayland use ydotool type, else pynput.
+        if on_wayland and self._try_ydotool("type", "--", text):
+            return
         self._kb.type(text)
 
     def _stop_and_transcribe(self):
