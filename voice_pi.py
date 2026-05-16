@@ -288,9 +288,16 @@ class Dictate:
             pass
 
     def _restore_target_focus(self) -> bool:
-        # Refocus the window captured at record start before injecting text.
+        # For Wayland-native windows (gedit, ghostty…) xdotool finds an XID
+        # via getactivewindow but cannot get the title and cannot reliably
+        # activate them — windowactivate returns 0 but focuses an XWayland
+        # pseudo-window instead, causing ydotool's Ctrl+V to go there.
+        # Skip refocus when the title is unknown; Wayland focus does not
+        # drift on its own so the target window should still have it.
+        if not self._inject_target_xwin or not self._inject_target_title:
+            return False
         import subprocess, shutil
-        if not self._inject_target_xwin or not shutil.which("xdotool"):
+        if not shutil.which("xdotool"):
             return False
         try:
             r = subprocess.run(
@@ -338,19 +345,20 @@ class Dictate:
         # user pressed the PTT key.
         title = self._inject_target_title or '?'
         if on_wayland and self._restore_target_focus():
-            print(f"[inject] → '{title}' (refocused)", flush=True)
+            print(f"[inject] → '{title}' (refocused via xdotool)", flush=True)
             time.sleep(0.1)  # let compositor process the focus change
         else:
-            print(f"[inject] → '{title}'", flush=True)
+            print(f"[inject] → '{title}' (natural focus)", flush=True)
 
         if self.mode == "paste":
             import pyperclip
             pyperclip.copy(text)
-            # On Wayland, pynput's XWayland Ctrl+V never reaches Wayland-native
-            # windows. ydotool injects via uinput (kernel level) and works in
-            # all apps. Falls back to pynput for X11/Windows/macOS.
-            if on_wayland and self._try_ydotool("key", "ctrl+v"):
-                return
+            if on_wayland:
+                print("[inject] ydotool key ctrl+v …", flush=True)
+                if self._try_ydotool("key", "ctrl+v"):
+                    print("[inject] ydotool ok", flush=True)
+                    return
+                print("[inject] ydotool failed — fallback pynput", flush=True)
             self._kb.press(keyboard.Key.ctrl)
             self._kb.press("v")
             self._kb.release("v")
