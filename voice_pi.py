@@ -308,6 +308,26 @@ class Dictate:
         except Exception:
             return False
 
+    def _try_wtype(self, text: str) -> bool:
+        # wtype uses Wayland's zwp_virtual_keyboard_v1 protocol — the
+        # compositor applies its own XKB layout, so Danish å/æ/ø and all
+        # Unicode work correctly. ydotool type runs below the compositor
+        # and maps characters via XKB without knowing the active layout.
+        import subprocess, shutil
+        if not shutil.which("wtype"):
+            return False
+        try:
+            r = subprocess.run(["wtype", "--", text],
+                               capture_output=True, timeout=10)
+            if r.returncode != 0:
+                err = r.stderr.decode(errors="replace").strip()
+                if err:
+                    print(f"[wtype] {err}", flush=True)
+            return r.returncode == 0
+        except Exception as e:
+            print(f"[wtype] error: {e}", flush=True)
+            return False
+
     def _try_ydotool(self, *args: str) -> bool:
         import subprocess, shutil
         if not shutil.which("ydotool"):
@@ -352,23 +372,27 @@ class Dictate:
 
         if self.mode == "paste":
             import pyperclip
-            pyperclip.copy(text)  # clipboard as backup; injection via ydotool type
+            pyperclip.copy(text)  # clipboard as backup for manual paste
             if on_wayland:
-                # ydotool type works in ALL apps: terminals, editors, browsers.
-                # ctrl+v is NOT paste in terminals (it's readline "quoted insert");
-                # ctrl+shift+v is terminal paste but breaks GTK editors.
-                # ydotool type bypasses the paste-shortcut problem entirely.
-                print("[inject] ydotool type …", flush=True)
-                if self._try_ydotool("type", "--", text):
-                    print("[inject] ydotool type ok", flush=True)
+                # wtype uses Wayland's virtual keyboard protocol and the
+                # compositor's own XKB layout → correct Unicode (å/æ/ø).
+                # ydotool type runs below the compositor and drops non-ASCII
+                # unless ydotoold was started with the right XKB layout.
+                if self._try_wtype(text):
                     return
-                print("[inject] ydotool type failed — fallback pynput", flush=True)
+                # ydotool type fallback (ASCII works; non-ASCII may drop)
+                if self._try_ydotool("type", "--", text):
+                    return
+                print("[inject] both wtype and ydotool failed — fallback pynput",
+                      flush=True)
             self._kb.press(keyboard.Key.ctrl)
             self._kb.press("v")
             self._kb.release("v")
             self._kb.release(keyboard.Key.ctrl)
             return
-        # default: type characters. On Wayland use ydotool type, else pynput.
+        # default: type characters. On Wayland use wtype, else pynput.
+        if on_wayland and self._try_wtype(text):
+            return
         if on_wayland and self._try_ydotool("type", "--", text):
             return
         self._kb.type(text)
