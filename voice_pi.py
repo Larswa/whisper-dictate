@@ -352,13 +352,17 @@ class Dictate:
 
         if self.mode == "paste":
             import pyperclip
-            pyperclip.copy(text)
+            pyperclip.copy(text)  # clipboard as backup; injection via ydotool type
             if on_wayland:
-                print("[inject] ydotool key ctrl+v …", flush=True)
-                if self._try_ydotool("key", "ctrl+v"):
-                    print("[inject] ydotool ok", flush=True)
+                # ydotool type works in ALL apps: terminals, editors, browsers.
+                # ctrl+v is NOT paste in terminals (it's readline "quoted insert");
+                # ctrl+shift+v is terminal paste but breaks GTK editors.
+                # ydotool type bypasses the paste-shortcut problem entirely.
+                print("[inject] ydotool type …", flush=True)
+                if self._try_ydotool("type", "--", text):
+                    print("[inject] ydotool type ok", flush=True)
                     return
-                print("[inject] ydotool failed — fallback pynput", flush=True)
+                print("[inject] ydotool type failed — fallback pynput", flush=True)
             self._kb.press(keyboard.Key.ctrl)
             self._kb.press("v")
             self._kb.release("v")
