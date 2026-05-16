@@ -180,8 +180,15 @@ def _transcribe(model: WhisperModel, pcm: np.ndarray,
     return text
 
 
-def _detect_xkb_layout() -> str | None:
-    # Priority: explicit VOICEPI_XKB_LAYOUT > XKB_DEFAULT_LAYOUT > /etc/default/keyboard
+_LANG_TO_XKB = {
+    "da": "dk", "de": "de", "fr": "fr", "fi": "fi", "sv": "se",
+    "nb": "no", "nn": "no", "nl": "nl", "pl": "pl", "pt": "pt",
+    "es": "es", "it": "it", "ru": "ru",
+}
+
+
+def _detect_xkb_layout(lang: str | None = None) -> str | None:
+    # Priority: VOICEPI_XKB_LAYOUT > XKB_DEFAULT_LAYOUT > /etc/default/keyboard > lang hint
     for var in ("VOICEPI_XKB_LAYOUT", "XKB_DEFAULT_LAYOUT"):
         v = os.environ.get(var, "").strip()
         if v:
@@ -191,9 +198,14 @@ def _detect_xkb_layout() -> str | None:
             for line in f:
                 m = re.match(r'XKBLAYOUT="?([^"\s]+)"?', line)
                 if m:
-                    return m.group(1)
+                    layout = m.group(1)
+                    if layout != "us":  # "us" is often wrong on non-US systems
+                        return layout
     except FileNotFoundError:
         pass
+    # Fall back: derive layout from spoken-language hint (da→dk, de→de, sv→se…)
+    if lang and lang in _LANG_TO_XKB:
+        return _LANG_TO_XKB[lang]
     return None
 
 
@@ -375,7 +387,7 @@ class Dictate:
             # ydotool type injects via /dev/uinput — works in all Wayland apps.
             # XKB_DEFAULT_LAYOUT must match the keyboard layout so non-ASCII
             # characters (æøå) are mapped to the correct key codes.
-            layout = _detect_xkb_layout()
+            layout = _detect_xkb_layout(self.lang)
             extra = {"XKB_DEFAULT_LAYOUT": layout} if layout else {}
             print(f"[inject] ydotool type (layout={layout or 'unset'})", flush=True)
             if self._try_ydotool("type", "--", text, extra_env=extra):
