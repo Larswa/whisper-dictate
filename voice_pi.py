@@ -384,28 +384,16 @@ class Dictate:
             print(f"[inject] → '{title}'", flush=True)
 
         if on_wayland:
-            # ydotool type drops non-ASCII chars: the daemon converts chars to
-            # keycodes using its own XKB config (system "us"), ignoring the
-            # client-side XKB_DEFAULT_LAYOUT env var — so æøå are silently lost.
-            # Solution: put the text in the clipboard and inject a paste keystroke.
-            # VOICEPI_PASTE_KEY overrides the default (ctrl+shift+v for terminals;
-            # use ctrl+v for editors/browsers).
-            import subprocess, shutil
-            paste_key = os.environ.get("VOICEPI_PASTE_KEY", "ctrl+shift+v")
-            if shutil.which("wl-copy"):
-                subprocess.run(["wl-copy", "--", text],
-                               capture_output=True, timeout=5)
-                print(f"[inject] wl-copy → ydotool key {paste_key}", flush=True)
-                if self._try_ydotool("key", paste_key):
-                    return
-            # ydotool not available or wl-copy missing: fall back to type
+            # ydotoold daemon converts chars to keycodes using XKB_DEFAULT_LAYOUT
+            # from its own environment (set via systemd service). The compositor
+            # must also use the dk layout so it maps the injected keycodes back
+            # to the correct characters (done by ubuntu26.04/setup.sh).
             layout = _detect_xkb_layout(self.lang)
             extra = {"XKB_DEFAULT_LAYOUT": layout} if layout else {}
-            print(f"[inject] ydotool type fallback (layout={layout or 'unset'})",
-                  flush=True)
+            print(f"[inject] ydotool type (layout={layout or 'unset'})", flush=True)
             if self._try_ydotool("type", "--", text, extra_env=extra):
                 return
-            print("[inject] fallback pynput type", flush=True)
+            print("[inject] ydotool type failed — fallback pynput", flush=True)
             self._kb.type(text)
             return
 

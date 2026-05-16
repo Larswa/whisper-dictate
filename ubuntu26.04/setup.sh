@@ -70,6 +70,20 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+step "GNOME: tastaturlayout dk"
+# ---------------------------------------------------------------------------
+# GNOME bruger "us"-layout for uinput-enheder (whisper-dictates virtuelle tastatur)
+# selv om det fysiske tastatur virker korrekt. Sæt input source til dk eksplicit
+# så compositor fortolker KEY_LEFTBRACE → å i stedet for [.
+current_sources=$(gsettings get org.gnome.desktop.input-sources sources 2>/dev/null || echo "")
+if echo "$current_sources" | grep -q "'dk'"; then
+    ok "GNOME input source er allerede dk"
+else
+    gsettings set org.gnome.desktop.input-sources sources "[('xkb', 'dk')]"
+    ok "GNOME input source sat til dk (påkrævet for æøå via ydotool type)"
+fi
+
+# ---------------------------------------------------------------------------
 step "ydotool: udev-regel for /dev/uinput"
 # ---------------------------------------------------------------------------
 UDEV_FILE="/etc/udev/rules.d/60-uinput.rules"
@@ -94,6 +108,8 @@ fi
 # ---------------------------------------------------------------------------
 step "ydotoold: systemd user-service"
 # ---------------------------------------------------------------------------
+# XKB_DEFAULT_LAYOUT=dk i daemonen er afgørende: det er ydotoold der
+# konverterer tegn (æøå) til keycodes — klient-processens env har ingen effekt.
 mkdir -p ~/.config/systemd/user
 cat > ~/.config/systemd/user/ydotoold.service << 'SVCEOF'
 [Unit]
@@ -102,6 +118,7 @@ After=graphical-session.target
 
 [Service]
 ExecStart=/usr/bin/ydotoold
+Environment=XKB_DEFAULT_LAYOUT=dk
 Restart=on-failure
 RestartSec=2
 
