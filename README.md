@@ -86,11 +86,10 @@ file and launcher. Unzip, run the launcher, done.
 
 Unzip the right variant (or copy the whole repo folder), then:
 
-**Windows:**
-```powershell
-powershell -ExecutionPolicy Bypass -File setup.ps1
-```
-**Linux:**
+**Windows — one click:** double-click **`setup.cmd`**. That's it.
+(CLI equivalent: `powershell -ExecutionPolicy Bypass -File setup.ps1`)
+
+**Linux — one command:**
 ```bash
 ./setup.sh
 ```
