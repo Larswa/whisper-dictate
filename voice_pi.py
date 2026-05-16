@@ -269,7 +269,16 @@ class Dictate:
             r = subprocess.run(["ydotool", *args], capture_output=True, timeout=10)
             if r.returncode != 0:
                 err = r.stderr.decode(errors="replace").strip()
-                if err:
+                # If the daemon socket is missing, try to start it once
+                if "ydotool_socket" in err and shutil.which("ydotoold"):
+                    subprocess.Popen(["ydotoold"],
+                                     stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL)
+                    time.sleep(0.5)
+                    r = subprocess.run(["ydotool", *args],
+                                       capture_output=True, timeout=10)
+                    err = r.stderr.decode(errors="replace").strip()
+                if r.returncode != 0 and err:
                     print(f"[ydotool] {err}", flush=True)
             return r.returncode == 0
         except Exception as e:
