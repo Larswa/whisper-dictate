@@ -219,6 +219,8 @@ class Dictate:
         self._stream = None
         self._arecord_proc = None
         self._kb = keyboard.Controller()
+        self._inject_target_xwin: str | None = None   # XID captured at record start
+        self._inject_target_title: str | None = None  # window title for debug log
         if _ARECORD_DEVICE is None:
             _ARECORD_DEVICE = _find_arecord_device()
         if _ARECORD_DEVICE:
@@ -243,6 +245,7 @@ class Dictate:
     def _start(self):
         if self.recording:
             return
+        self._capture_target_window()
         self.frames = []
         self.recording = True
         if _ARECORD_DEVICE:
@@ -260,6 +263,43 @@ class Dictate:
             )
             self._stream.start()
         print("● listening…", flush=True)
+
+    def _capture_target_window(self):
+        # Capture the active window at the moment PTT is pressed.
+        # CPU transcription takes 4+ seconds; by then focus has drifted.
+        # Storing the XID lets _inject() refocus before sending Ctrl+V.
+        import subprocess, shutil
+        self._inject_target_xwin = None
+        self._inject_target_title = None
+        if not shutil.which("xdotool"):
+            return
+        try:
+            r = subprocess.run(["xdotool", "getactivewindow"],
+                               capture_output=True, timeout=1)
+            if r.returncode != 0:
+                return
+            xwin = r.stdout.decode().strip()
+            self._inject_target_xwin = xwin
+            rt = subprocess.run(["xdotool", "getwindowname", xwin],
+                                capture_output=True, timeout=1)
+            if rt.returncode == 0:
+                self._inject_target_title = rt.stdout.decode().strip()
+        except Exception:
+            pass
+
+    def _restore_target_focus(self) -> bool:
+        # Refocus the window captured at record start before injecting text.
+        import subprocess, shutil
+        if not self._inject_target_xwin or not shutil.which("xdotool"):
+            return False
+        try:
+            r = subprocess.run(
+                ["xdotool", "windowactivate", "--sync",
+                 self._inject_target_xwin],
+                capture_output=True, timeout=2)
+            return r.returncode == 0
+        except Exception:
+            return False
 
     def _try_ydotool(self, *args: str) -> bool:
         import subprocess, shutil
@@ -285,35 +325,24 @@ class Dictate:
             print(f"[ydotool] error: {e}", flush=True)
             return False
 
-    def _focused_window(self) -> str:
-        import subprocess
-        try:
-            r = subprocess.run(
-                ["gdbus", "call", "--session",
-                 "--dest", "org.gnome.Shell",
-                 "--object-path", "/org/gnome/Shell",
-                 "--method", "org.gnome.Shell.Eval",
-                 "global.display.focus_window?.get_title() ?? '(none)'"],
-                capture_output=True, timeout=2)
-            out = r.stdout.decode(errors="replace").strip()
-            # output is like: (true, '\'Window Title\'')
-            import re
-            m = re.search(r"'(.*)'", out)
-            return m.group(1) if m else out
-        except Exception:
-            return "?"
-
     def _inject(self, text: str):
-        # Settle: let key-up events reach the compositor and focus stabilise
-        # before injecting. The user's hand must be off the PTT keys and the
-        # TARGET window must have focus — not the terminal running this script.
+        # Settle: let key-up events reach the compositor before injecting.
         time.sleep(0.4)
         if self.mode == "print":
             print(f"  (heard) {text}", flush=True)
             return
         on_wayland = bool(os.environ.get('WAYLAND_DISPLAY'))
-        focused = self._focused_window()
-        print(f"[inject] → '{focused}'", flush=True)
+
+        # CPU transcription takes 4+ seconds — focus has drifted to the
+        # terminal by then. Restore the window that was focused when the
+        # user pressed the PTT key.
+        title = self._inject_target_title or '?'
+        if on_wayland and self._restore_target_focus():
+            print(f"[inject] → '{title}' (refocused)", flush=True)
+            time.sleep(0.1)  # let compositor process the focus change
+        else:
+            print(f"[inject] → '{title}'", flush=True)
+
         if self.mode == "paste":
             import pyperclip
             pyperclip.copy(text)
