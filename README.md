@@ -83,8 +83,8 @@ launches. Hold **Right Ctrl**, speak, release.
 | `--key a+b` | chord: hold **both** keys simultaneously, e.g. `shift_r+ctrl_r` |
 | `--paste` | inject via clipboard + Ctrl+V on X11/Windows (Wayland always uses ydotool type) |
 | `--no-type` | just print transcription, don't inject (testing) |
-| `--lang da` | spoken-language hint `da`/`en`/`de`/`fr`… (default `da`; env `VOICEPI_LANG`) |
-| `--autodetect` | let Whisper guess the language (less reliable on short/soft speech) |
+| `--lang da` | spoken-language hint `da`/`en`/`de`/`fr`… (env `VOICEPI_LANG`) — omit to auto-detect |
+| `--autodetect` | alias for omitting `--lang` (Whisper guesses — less reliable on short/soft speech) |
 | `--model NAME` | Whisper model (default `large-v3-turbo`; env `VOICEPI_MODEL`) |
 | `--device D` | `auto`/`cuda`/`cpu` (default `auto`; env `VOICEPI_DEVICE`) |
 
@@ -144,7 +144,7 @@ text at cursor in whatever window is focused
 | `VOICEPI_TARGET_DBFS` | `-20` | lower (e.g. `-16`) = boost quiet speech harder |
 | `VOICEPI_MODEL` | `large-v3-turbo` | `large-v3` = slightly better accuracy, slower |
 | `VOICEPI_DEVICE` | `auto` | `cuda`/`cpu` to force; `auto` = NVIDIA if present |
-| `VOICEPI_LANG` | `da` | spoken-language hint (`en`, `de`, `fr`…) |
+| `VOICEPI_LANG` | _(auto-detect)_ | spoken-language hint (`da`, `en`, `de`, `fr`…) |
 | `VOICEPI_XKB_LAYOUT` | _(auto-detected)_ | keyboard layout for ydotool type (Wayland) — e.g. `dk`, `de`, `us` |
 
 The `[cap]` line prints loudness, gain, noise floor and **SNR** per

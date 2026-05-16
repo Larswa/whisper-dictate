@@ -23,9 +23,9 @@ Hold RIGHT CTRL, speak, release → text appears at your cursor.
   --model NAME    Whisper model (default large-v3-turbo, the fastest;
                   env VOICEPI_MODEL)
   --device D      auto|cuda|cpu (default auto; env VOICEPI_DEVICE)
-  --lang CODE     spoken-language hint da/en/de/fr… (default da;
-                  env VOICEPI_LANG) — reliable on short/soft speech
-  --autodetect    let Whisper guess the language (less reliable)
+  --lang CODE     spoken-language hint da/en/de/fr… (env VOICEPI_LANG)
+                  omit to let Whisper auto-detect (less reliable on short speech)
+  --autodetect    alias for omitting --lang
 
 On Wayland, text is injected via ydotool type. Set VOICEPI_XKB_LAYOUT
 (e.g. "dk") so non-ASCII characters (æøå) are typed correctly:
@@ -83,7 +83,7 @@ TARGET_DBFS = float(os.environ.get("VOICEPI_TARGET_DBFS", "-20"))
 # fixed hint is far more reliable than auto-detect on short/soft
 # utterances (and avoids da+English mixing flip-flop). "da", "en",
 # "de", "fr", … ; --autodetect sets this to None (Whisper guesses).
-LANG = os.environ.get("VOICEPI_LANG", "da")
+LANG = os.environ.get("VOICEPI_LANG")  # None → Whisper auto-detects
 
 
 def _resolve_device(want: str) -> tuple[str, str]:
@@ -587,10 +587,9 @@ if __name__ == "__main__":
                          "env VOICEPI_MODEL)")
     ap.add_argument("--lang", default=LANG,
                     help="spoken-language hint: da, en, de, fr… "
-                         "(default da; env VOICEPI_LANG)")
+                         "(env VOICEPI_LANG) — omit to let Whisper auto-detect")
     ap.add_argument("--autodetect", action="store_true",
-                    help="let Whisper auto-detect language (less reliable "
-                         "on short/soft speech than a fixed --lang)")
+                    help="explicitly auto-detect language (alias for omitting --lang)")
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--paste", action="store_const", dest="mode",
                    const="paste",
@@ -603,7 +602,7 @@ if __name__ == "__main__":
                          "auto = NVIDIA GPU if present, else CPU")
     ap.set_defaults(mode="type")
     a = ap.parse_args()
-    lang = None if a.autodetect else a.lang
+    lang = None if (a.autodetect or not a.lang) else a.lang
     dev, ctype = _resolve_device(a.device)
 
     print(f"loading Whisper {a.model} on {dev} ({ctype})… "
