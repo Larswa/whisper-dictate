@@ -354,13 +354,13 @@ class Dictate:
         if self.mode == "paste":
             import pyperclip
             pyperclip.copy(text)
+            print(f"[inject] clipboard set, firing ydotool key {self.paste_key} …",
+                  flush=True)
             if on_wayland:
-                # Clipboard stores Unicode as text — no key-to-char translation,
-                # so å/æ/ø survive. We just need to trigger paste.
-                # Terminals use ctrl+shift+v (ctrl+v = readline "quoted insert").
-                # Editors use ctrl+v. Pass --paste-key to override.
                 if self._try_ydotool("key", self.paste_key):
+                    print("[inject] ydotool ok", flush=True)
                     return
+                print("[inject] ydotool failed — fallback pynput ctrl+v", flush=True)
             self._kb.press(keyboard.Key.ctrl)
             self._kb.press("v")
             self._kb.release("v")
