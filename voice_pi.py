@@ -208,12 +208,13 @@ _ARECORD_DEVICE: str | None = None  # set once at startup
 
 class Dictate:
     def __init__(self, model: WhisperModel, key: str, mode: str,
-                 lang: str | None):
+                 lang: str | None, paste_key: str = "ctrl+shift+v"):
         global _ARECORD_DEVICE
         self.model = model
         self.key = key
         self.mode = mode  # "type" | "paste" | "print"
         self.lang = lang  # ISO code, or None for auto-detect
+        self.paste_key = paste_key  # ydotool key sequence for clipboard paste
         self.frames: list[np.ndarray] = []
         self.recording = False
         self._stream = None
@@ -308,26 +309,6 @@ class Dictate:
         except Exception:
             return False
 
-    def _try_wtype(self, text: str) -> bool:
-        # wtype uses Wayland's zwp_virtual_keyboard_v1 protocol — the
-        # compositor applies its own XKB layout, so Danish å/æ/ø and all
-        # Unicode work correctly. ydotool type runs below the compositor
-        # and maps characters via XKB without knowing the active layout.
-        import subprocess, shutil
-        if not shutil.which("wtype"):
-            return False
-        try:
-            r = subprocess.run(["wtype", "--", text],
-                               capture_output=True, timeout=10)
-            if r.returncode != 0:
-                err = r.stderr.decode(errors="replace").strip()
-                if err:
-                    print(f"[wtype] {err}", flush=True)
-            return r.returncode == 0
-        except Exception as e:
-            print(f"[wtype] error: {e}", flush=True)
-            return False
-
     def _try_ydotool(self, *args: str) -> bool:
         import subprocess, shutil
         if not shutil.which("ydotool"):
@@ -372,27 +353,20 @@ class Dictate:
 
         if self.mode == "paste":
             import pyperclip
-            pyperclip.copy(text)  # clipboard as backup for manual paste
+            pyperclip.copy(text)
             if on_wayland:
-                # wtype uses Wayland's virtual keyboard protocol and the
-                # compositor's own XKB layout → correct Unicode (å/æ/ø).
-                # ydotool type runs below the compositor and drops non-ASCII
-                # unless ydotoold was started with the right XKB layout.
-                if self._try_wtype(text):
+                # Clipboard stores Unicode as text — no key-to-char translation,
+                # so å/æ/ø survive. We just need to trigger paste.
+                # Terminals use ctrl+shift+v (ctrl+v = readline "quoted insert").
+                # Editors use ctrl+v. Pass --paste-key to override.
+                if self._try_ydotool("key", self.paste_key):
                     return
-                # ydotool type fallback (ASCII works; non-ASCII may drop)
-                if self._try_ydotool("type", "--", text):
-                    return
-                print("[inject] both wtype and ydotool failed — fallback pynput",
-                      flush=True)
             self._kb.press(keyboard.Key.ctrl)
             self._kb.press("v")
             self._kb.release("v")
             self._kb.release(keyboard.Key.ctrl)
             return
-        # default: type characters. On Wayland use wtype, else pynput.
-        if on_wayland and self._try_wtype(text):
-            return
+        # default: type characters. On Wayland use ydotool type, else pynput.
         if on_wayland and self._try_ydotool("type", "--", text):
             return
         self._kb.type(text)
@@ -586,6 +560,9 @@ if __name__ == "__main__":
                    const="paste", help="inject via clipboard + Ctrl+V")
     g.add_argument("--no-type", action="store_const", dest="mode",
                    const="print", help="just print, don't inject")
+    ap.add_argument("--paste-key", default="ctrl+shift+v",
+                    help="ydotool key sequence used to paste from clipboard on Wayland "
+                         "(default ctrl+shift+v for terminals; use ctrl+v for text editors)")
     ap.add_argument("--device", default=DEVICE,
                     help="auto|cuda|cpu (default auto; env VOICEPI_DEVICE). "
                          "auto = NVIDIA GPU if present, else CPU")
@@ -603,6 +580,6 @@ if __name__ == "__main__":
     _model = WhisperModel(a.model, device=dev, compute_type=ctype)
     print(f"model ready in {time.monotonic() - _t:.1f}s", flush=True)
     try:
-        Dictate(_model, a.key, a.mode, lang).run()
+        Dictate(_model, a.key, a.mode, lang, paste_key=a.paste_key).run()
     except KeyboardInterrupt:
         print("\nbye")
