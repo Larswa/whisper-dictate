@@ -165,6 +165,21 @@ per-utterance `compute=` time — read `snr` to judge mic quality:
 - Possible later: hands-free VAD mode instead of push-to-talk. PTT is
   the robust default for quiet speech — no false triggers.
 
+## Releasing
+
+CI (`.github/workflows/release.yml`) cuts releases. Push a version tag:
+
+```bash
+git tag v0.1.1 && git push origin v0.1.1
+```
+
+It builds the four bundles, generates the changelog from commit
+messages since the previous tag, appends the evergreen
+[`RELEASE_NOTES.md`](RELEASE_NOTES.md) body, and publishes the GitHub
+Release. Re-runnable (idempotent: edits notes + clobbers assets if the
+release already exists). Can also be run from the Actions tab against
+an existing tag.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

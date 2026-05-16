@@ -1,0 +1,97 @@
+name: release
+
+# Cut a release by pushing a version tag:
+#   git tag v0.1.1 && git push origin v0.1.1
+# (or run this workflow manually from the Actions tab with an existing
+# tag). It builds the four platform bundles, generates release notes
+# from the commit messages since the previous tag, appends the
+# evergreen RELEASE_NOTES.md body, and publishes the GitHub Release.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to (re)release, e.g. v0.1.1'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag
+        run: |
+          if [ "${{ github.event_name }}" = workflow_dispatch ]; then
+            echo "TAG=${{ github.event.inputs.tag }}" >> "$GITHUB_ENV"
+          else
+            echo "TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0          # full history + tags for the changelog
+
+      - name: Sanity-check scripts
+        run: |
+          python3 -c "import ast; ast.parse(open('voice_pi.py').read())"
+          bash -n setup.sh
+
+      - name: Build bundles
+        run: |
+          set -e
+          mkbundle() {   # $1 zip  $2 requirements-file  $3 launchers
+            d=whisper-dictate; rm -rf "$d"; mkdir "$d"
+            cp voice_pi.py README.md LICENSE "$d/"
+            cp "$2" "$d/requirements.txt"
+            for f in $3; do cp "$f" "$d/"; done
+            [ -f "$d/setup.sh" ] && chmod +x "$d/setup.sh"
+            zip -q -r "$1" "$d"; rm -rf "$d"
+          }
+          mkbundle whisper-dictate-windows-nvidia.zip requirements-gpu.txt "setup.ps1 setup.cmd"
+          mkbundle whisper-dictate-windows-cpu.zip    requirements-cpu.txt "setup.ps1 setup.cmd"
+          mkbundle whisper-dictate-windows-amd.zip    requirements-cpu.txt "setup.ps1 setup.cmd"
+          mkbundle whisper-dictate-linux-cpu.zip      requirements-cpu.txt "setup.sh"
+
+      - name: Generate release notes from commit messages
+        run: |
+          set -e
+          PREV=$(git tag --sort=-v:refname | grep -vFx "$TAG" | head -n1 || true)
+          {
+            if [ -n "$PREV" ]; then
+              echo "## Changes ($PREV → $TAG)"
+              echo
+              git log --no-merges --pretty='- %s (%h)' "$PREV..$TAG"
+            else
+              echo "## Changes"
+              echo
+              git log --no-merges --pretty='- %s (%h)' "$TAG"
+            fi
+            echo
+            echo "---"
+            echo
+            cat RELEASE_NOTES.md
+          } > NOTES.md
+          echo "----- generated notes -----"; cat NOTES.md
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          assets="whisper-dictate-windows-nvidia.zip \
+                  whisper-dictate-windows-cpu.zip \
+                  whisper-dictate-windows-amd.zip \
+                  whisper-dictate-linux-cpu.zip"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "$TAG — download, unzip, run" --notes-file NOTES.md
+            gh release upload "$TAG" $assets --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" $assets --repo "$GITHUB_REPOSITORY" \
+              --title "$TAG — download, unzip, run" --notes-file NOTES.md
+          fi
