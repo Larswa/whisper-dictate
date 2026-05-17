@@ -91,23 +91,42 @@ Or after the venv is built:
 
 ## Windows 10 / 11
 
-### Install
-
-Double-click **`setup.cmd`**, or from PowerShell:
+### Install via winget
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File setup.ps1
+winget install --manifest "https://raw.githubusercontent.com/FactusConsulting/whisper-dictate/main/manifests/FactusConsulting.WhisperDictate.yaml"
 ```
 
-Fetches CPython 3.12 via `winget` if not already installed, builds a
-local venv, downloads the Whisper model, and launches. NVIDIA GPU is
-used automatically if present.
+This installs the CPU build (works on all machines). NVIDIA GPU is used
+automatically at runtime if present. The installer adds whisper-dictate
+to your user PATH.
+
+After installing, run the one-time setup (downloads Python 3.12 via
+winget if needed, builds a local venv, downloads the Whisper model ~1.5 GB):
+
+```powershell
+setup.cmd
+```
+
+### Install manually
+
+Download the zip from [GitHub Releases](https://github.com/FactusConsulting/whisper-dictate/releases/latest),
+unzip anywhere, and double-click **`setup.cmd`**.
 
 ### Start
 
-Double-click `setup.cmd` again — it launches directly after the first run.
+```powershell
+setup.cmd --key ctrl_r --lang en
+```
+
+Or after first-time setup, launch directly:
+
+```powershell
+setup.cmd --key ctrl_r --lang da
+```
 
 Hold **Right Ctrl**, speak, release — text appears at the cursor.
+NVIDIA GPU is used automatically if present.
 
 ---
 
