@@ -1,5 +1,5 @@
 PackageIdentifier: FactusConsulting.WhisperDictate
-PackageVersion: 0.2.21
+PackageVersion: 0.2.23
 PackageLocale: en-US
 Publisher: FactusConsulting
 PublisherUrl: https://github.com/FactusConsulting
@@ -7,10 +7,10 @@ PackageName: whisper-dictate
 PackageUrl: https://github.com/FactusConsulting/whisper-dictate
 License: MIT
 LicenseUrl: https://github.com/FactusConsulting/whisper-dictate/blob/main/LICENSE
-ShortDescription: Local push-to-talk dictation — speak prompts instead of typing them
+ShortDescription: Local push-to-talk dictation -- speak prompts instead of typing them
 Description: >-
   App-agnostic push-to-talk dictation. Hold a key, speak quietly but clearly,
-  release — the transcribed text is injected into whatever window has focus.
+  release -- the transcribed text is injected into whatever window has focus.
   Whisper runs fully locally on your own machine; nothing leaves the box.
 Tags:
   - dictation
