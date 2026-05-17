@@ -186,12 +186,16 @@ _LANG_TO_XKB = {
     "es": "es", "it": "it", "ru": "ru",
 }
 
-# DK-layout: direkte evdev-keycodes for æøå (og store varianter).
-# Compositor fortolker dem via XKB dk-layout — ingen clipboard/paste nødvendig.
-_DK_CHAR_TO_KEY = {
-    'å': 'KEY_LEFTBRACE',              'Å': 'KEY_LEFTSHIFT+KEY_LEFTBRACE',
-    'æ': 'KEY_APOSTROPHE',             'Æ': 'KEY_LEFTSHIFT+KEY_APOSTROPHE',
-    'ø': 'KEY_SEMICOLON',              'Ø': 'KEY_LEFTSHIFT+KEY_SEMICOLON',
+# DK-layout: numeriske evdev-keycodes for æøå (og store varianter).
+# ydotool key kræver format <code>:<pressed> — symbolske navne ignoreres stille.
+# KEY_LEFTBRACE=26 (å), KEY_SEMICOLON=39 (æ), KEY_APOSTROPHE=40 (ø), KEY_LEFTSHIFT=42
+_DK_CHAR_TO_KEY: dict[str, list[str]] = {
+    'å': ['26:1', '26:0'],
+    'Å': ['42:1', '26:1', '26:0', '42:0'],
+    'æ': ['39:1', '39:0'],
+    'Æ': ['42:1', '39:1', '39:0', '42:0'],
+    'ø': ['40:1', '40:0'],
+    'Ø': ['42:1', '40:1', '40:0', '42:0'],
 }
 
 
@@ -349,13 +353,13 @@ class Dictate:
 
     def _wayland_type(self, text: str) -> bool:
         # Split på DK-specialtegn: ASCII-dele sendes via ydotool type,
-        # æøå (og store varianter) sendes som direkte evdev-keycodes
+        # æøå (og store varianter) sendes som numeriske evdev-keycodes
         # via ydotool key — compositor fortolker dem via XKB dk-layout.
         for part in re.split(r'([åÅæÆøØ])', text):
             if not part:
                 continue
             if part in _DK_CHAR_TO_KEY:
-                if not self._try_ydotool('key', _DK_CHAR_TO_KEY[part]):
+                if not self._try_ydotool('key', *_DK_CHAR_TO_KEY[part]):
                     return False
             else:
                 if not self._try_ydotool('type', '--', part):
