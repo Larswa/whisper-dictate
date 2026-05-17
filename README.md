@@ -36,12 +36,7 @@ whisper-dictate --key shift_r+ctrl_r --lang da
 
 Hold **right Shift + right Ctrl**, speak, release — text appears at the cursor.
 
-Text is injected via clipboard + `Ctrl+Shift+V` (the terminal paste shortcut).
-For editors or browsers that use `Ctrl+V` for paste:
-
-```bash
-VOICEPI_PASTE_KEY=ctrl+v whisper-dictate --key shift_r+ctrl_r --lang da
-```
+Text is injected directly at the cursor — no clipboard, no paste shortcut.
 
 ### Linux — manual
 
@@ -85,7 +80,7 @@ launches. Hold **Right Ctrl**, speak, release.
 |---|---|
 | `--key ctrl_r` | hold-to-talk key (`ctrl_r`, `alt_r`, `f9`…) |
 | `--key a+b` | chord: hold **both** keys simultaneously, e.g. `shift_r+ctrl_r` |
-| `--paste` | inject via clipboard + Ctrl+V on X11/Windows (Wayland always uses ydotool type) |
+| `--paste` | inject via clipboard + Ctrl+V on X11/Windows (Wayland always uses direct evdev keycodes) |
 | `--no-type` | just print transcription, don't inject (testing) |
 | `--lang da` | spoken-language hint `da`/`en`/`de`/`fr`… (env `VOICEPI_LANG`) — omit to auto-detect |
 | `--autodetect` | alias for omitting `--lang` (Whisper guesses — less reliable on short/soft speech) |
@@ -94,13 +89,15 @@ launches. Hold **Right Ctrl**, speak, release.
 
 ## Wayland details (Ubuntu 24.04/26.04)
 
-**Text injection — clipboard + paste:**
-On Wayland, whisper-dictate copies text to the clipboard via `wl-copy` and
-then injects the paste keystroke via ydotool. This bypasses all XKB layout
-issues and works correctly for all Unicode characters including æøå.
+**Text injection — direct evdev keycodes:**
+On Wayland, whisper-dictate injects text directly via ydotool without using
+the clipboard. ASCII characters go through `ydotool type`. Danish characters
+(æøå and uppercase variants) are sent as raw Linux evdev keycodes (`ydotool
+key 39:1 39:0` etc.) — the compositor maps them to the correct characters via
+the DK XKB layout on ydotoold's virtual keyboard device.
 
-Default paste key is `ctrl+shift+v` (terminal emulator standard). Set
-`VOICEPI_PASTE_KEY=ctrl+v` for editors and browsers.
+ydotool 1.0.4 (Ubuntu 26.04) requires numeric `<code>:<pressed>` format for
+the `key` subcommand; symbolic names like `KEY_SEMICOLON` are silently ignored.
 
 **Hotkey detection — evdev:**
 On Wayland, pynput's Xorg backend only sees keyboard events from XWayland
@@ -151,7 +148,6 @@ text at cursor in whatever window is focused
 | `VOICEPI_MODEL` | `large-v3-turbo` | `large-v3` = slightly better accuracy, slower |
 | `VOICEPI_DEVICE` | `auto` | `cuda`/`cpu` to force; `auto` = NVIDIA if present |
 | `VOICEPI_LANG` | _(auto-detect)_ | spoken-language hint (`da`, `en`, `de`, `fr`…) |
-| `VOICEPI_PASTE_KEY` | `ctrl+shift+v` | paste shortcut injected on Wayland — use `ctrl+v` for editors/browsers |
 
 The `[cap]` line prints loudness, gain, noise floor and **SNR** per
 utterance — `snr` tells you if the mic is the bottleneck: ≳25 dB

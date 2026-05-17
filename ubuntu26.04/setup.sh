@@ -173,12 +173,9 @@ if ! groups | grep -q '\binput\b'; then
     echo "  whisper-dictate --key shift_r+ctrl_r --lang da"
 else
     echo "  Test: hold højre Shift+Ctrl, tal, slip"
-    echo "  Teksten indsættes i det vindue der havde fokus da du trykkede."
+    echo "  Teksten indsættes direkte i det vindue der havde fokus da du trykkede."
     echo
     echo "  Kør manuelt (starter også ved næste login automatisk):"
     echo "  whisper-dictate --key shift_r+ctrl_r --lang da"
-    echo
-    echo "  Til teksteditorer/browsere (ctrl+v i stedet for ctrl+shift+v):"
-    echo "  VOICEPI_PASTE_KEY=ctrl+v whisper-dictate --key shift_r+ctrl_r --lang da"
 fi
 echo

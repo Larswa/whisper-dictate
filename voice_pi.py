@@ -18,7 +18,7 @@ Hold RIGHT CTRL, speak, release → text appears at your cursor.
   --key f9        use a different hold-to-talk key (ctrl_r, alt_r, f9…)
   --key a+b       chord: hold BOTH keys simultaneously (e.g. shift_r+ctrl_r)
   --paste         inject via clipboard + Ctrl+V on X11/Windows
-                  (on Wayland ydotool type is always used instead)
+                  (on Wayland direct evdev keycodes are always used instead)
   --no-type       just print what was heard (don't inject — testing)
   --model NAME    Whisper model (default large-v3-turbo, the fastest;
                   env VOICEPI_MODEL)
@@ -616,7 +616,7 @@ if __name__ == "__main__":
     g.add_argument("--paste", action="store_const", dest="mode",
                    const="paste",
                    help="inject via clipboard + Ctrl+V on X11/Windows "
-                        "(on Wayland ydotool type is always used)")
+                        "(on Wayland direct evdev keycodes are always used)")
     g.add_argument("--no-type", action="store_const", dest="mode",
                    const="print", help="just print, don't inject")
     ap.add_argument("--device", default=DEVICE,
