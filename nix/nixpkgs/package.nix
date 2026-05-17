@@ -29,7 +29,7 @@ in stdenv.mkDerivation (finalAttrs: {
     owner = "FactusConsulting";
     repo  = "whisper-dictate";
     rev   = "v${finalAttrs.version}";
-    hash  = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    hash  = "sha256-Y93fRQNO+VCc+GXltV672r0zdFuOJkN2zRpslSx7Q/4=";
   };
 
   nativeBuildInputs = [ makeWrapper ];
