@@ -190,37 +190,57 @@ _LANG_TO_XKB = {
     "es": "es", "it": "it", "ru": "ru",
 }
 
-# DK-layout: numeriske evdev-keycodes for tegn der er placeret anderledes end US.
-# ydotool key kræver format <code>:<pressed> — symbolske navne ignoreres stille.
-# ydotool type bruger US-layout internt; tegn med forskellig placering i DK
-# skal sendes som raw keycodes så compositor kan anvende DK-layoutet korrekt.
+# Wayland text injection: ydotool type bruger US-keyboard internt.
+# Tegn placeret anderledes i ikke-US layouts skal sendes som raw evdev-keycodes
+# via ydotool key så compositor anvender det aktive XKB-layout korrekt.
 #
-# Relevante scancodes:
+# Relevante scancodes (Linux input-event-codes.h):
 #   KEY_2=3  KEY_7=8  KEY_MINUS=12  KEY_LEFTBRACE=26
-#   KEY_COMMA=51  KEY_DOT=52  KEY_SLASH=53
 #   KEY_SEMICOLON=39  KEY_APOSTROPHE=40  KEY_LEFTSHIFT=42
-#
-# DK vs US forskelle (tegn ydotool type sender forkert på DK-layout):
-#   US shift+KEY_SLASH(53)=?  →  DK shift+KEY_SLASH=_   (bug: ? → _)
-#   US KEY_MINUS(12)=-        →  DK KEY_MINUS=+          (bug: - → +)
-#   US shift+KEY_SEMICOLON(39)=: → DK shift+KEY_SEMICOLON=Æ (bug: : → Æ)
-_DK_CHAR_TO_KEY: dict[str, list[str]] = {
-    # Bogstaver
-    'å': ['26:1', '26:0'],
-    'Å': ['42:1', '26:1', '26:0', '42:0'],
-    'æ': ['39:1', '39:0'],
-    'Æ': ['42:1', '39:1', '39:0', '42:0'],
-    'ø': ['40:1', '40:0'],
-    'Ø': ['42:1', '40:1', '40:0', '42:0'],
-    # Tegnsætning med forskellig placering i DK vs US
-    '?': ['42:1', '12:1', '12:0', '42:0'],  # DK: shift+KEY_MINUS
-    '-': ['53:1', '53:0'],                   # DK: KEY_SLASH
-    '_': ['42:1', '53:1', '53:0', '42:0'],  # DK: shift+KEY_SLASH
-    ':': ['42:1', '52:1', '52:0', '42:0'],  # DK: shift+KEY_DOT
-    ';': ['42:1', '51:1', '51:0', '42:0'],  # DK: shift+KEY_COMMA
-    '/': ['42:1', '8:1', '8:0', '42:0'],    # DK: shift+KEY_7
-    '"': ['42:1', '3:1', '3:0', '42:0'],    # DK: shift+KEY_2
+#   KEY_COMMA=51  KEY_DOT=52  KEY_SLASH=53
+
+# Tegnsætning der er identisk placeret i alle nordiske + tyske layouts,
+# men anderledes end US (f.eks. ? er shift+KEY_MINUS, ikke shift+KEY_SLASH).
+_NORDIC_DE_PUNCT: dict[str, list[str]] = {
+    '?': ['42:1', '12:1', '12:0', '42:0'],  # shift+KEY_MINUS (US: shift+KEY_SLASH)
+    '-': ['53:1', '53:0'],                   # KEY_SLASH       (US: KEY_MINUS)
+    '_': ['42:1', '53:1', '53:0', '42:0'],  # shift+KEY_SLASH
+    ':': ['42:1', '52:1', '52:0', '42:0'],  # shift+KEY_DOT   (US: shift+KEY_SEMICOLON)
+    ';': ['42:1', '51:1', '51:0', '42:0'],  # shift+KEY_COMMA (US: KEY_SEMICOLON)
+    '/': ['42:1', '8:1', '8:0', '42:0'],    # shift+KEY_7     (US: KEY_SLASH)
+    '"': ['42:1', '3:1', '3:0', '42:0'],    # shift+KEY_2     (US: shift+KEY_APOSTROPHE)
 }
+
+# Per-layout keycode-kort: XKB-layoutnavn → tegn → ydotool key-sekvens.
+# Keycodes 26/39/40 + shift(42) er de nordiske/tyske specialtegntaster —
+# samme fysiske placering, forskelligt tegn afhængig af layout.
+_LAYOUT_KEYCODES: dict[str, dict[str, list[str]]] = {
+    'dk': {  # Dansk: å æ ø
+        'å': ['26:1', '26:0'], 'Å': ['42:1', '26:1', '26:0', '42:0'],
+        'æ': ['39:1', '39:0'], 'Æ': ['42:1', '39:1', '39:0', '42:0'],
+        'ø': ['40:1', '40:0'], 'Ø': ['42:1', '40:1', '40:0', '42:0'],
+        **_NORDIC_DE_PUNCT,
+    },
+    'se': {  # Svensk: å ä ö (ä og ö på samme keycodes som DK's ø og æ)
+        'å': ['26:1', '26:0'], 'Å': ['42:1', '26:1', '26:0', '42:0'],
+        'ä': ['40:1', '40:0'], 'Ä': ['42:1', '40:1', '40:0', '42:0'],
+        'ö': ['39:1', '39:0'], 'Ö': ['42:1', '39:1', '39:0', '42:0'],
+        **_NORDIC_DE_PUNCT,
+    },
+    'de': {  # Tysk: ä ö ü (samme keycodes som nordiske specialtegn)
+        'ä': ['40:1', '40:0'], 'Ä': ['42:1', '40:1', '40:0', '42:0'],
+        'ö': ['39:1', '39:0'], 'Ö': ['42:1', '39:1', '39:0', '42:0'],
+        'ü': ['26:1', '26:0'], 'Ü': ['42:1', '26:1', '26:0', '42:0'],
+        **_NORDIC_DE_PUNCT,
+    },
+    'fi': {  # Finsk: ä ö (ingen å i normal finsk tekst)
+        'ä': ['40:1', '40:0'], 'Ä': ['42:1', '40:1', '40:0', '42:0'],
+        'ö': ['39:1', '39:0'], 'Ö': ['42:1', '39:1', '39:0', '42:0'],
+        **_NORDIC_DE_PUNCT,
+    },
+}
+# Norsk layout er identisk med dansk for æ, ø, å
+_LAYOUT_KEYCODES['no'] = _LAYOUT_KEYCODES['dk']
 
 
 def _detect_xkb_layout(lang: str | None = None) -> str | None:
@@ -288,6 +308,12 @@ class Dictate:
         self._kb = keyboard.Controller()
         self._inject_target_xwin: str | None = None   # XID captured at record start
         self._inject_target_title: str | None = None  # window title for debug log
+        xkb = _detect_xkb_layout(lang) or ''
+        self._keycode_map = _LAYOUT_KEYCODES.get(xkb, {})
+        if self._keycode_map:
+            print(f"[inject] keycode map: {xkb} ({len(self._keycode_map)} tegn)", flush=True)
+        elif bool(os.environ.get('WAYLAND_DISPLAY')):
+            print(f"[inject] ingen keycode map for layout '{xkb}' — kun ASCII via ydotool type", flush=True)
         if _ARECORD_DEVICE is None:
             _ARECORD_DEVICE = _find_arecord_device()
         if _ARECORD_DEVICE:
@@ -376,17 +402,17 @@ class Dictate:
             return False
 
     def _wayland_type(self, text: str) -> bool:
-        # Tegn i _DK_CHAR_TO_KEY sendes som numeriske evdev-keycodes (ydotool key)
-        # så compositor anvender DK-layoutet korrekt. Øvrige tegn akkumuleres og
-        # sendes samlet via ydotool type for at minimere antal processer.
+        # Tegn i self._keycode_map sendes som numeriske evdev-keycodes (ydotool key)
+        # så compositor anvender det aktive XKB-layout korrekt. Øvrige tegn
+        # akkumuleres og sendes samlet via ydotool type for færrest mulige processer.
         buf: list[str] = []
         for ch in text:
-            if ch in _DK_CHAR_TO_KEY:
+            if ch in self._keycode_map:
                 if buf:
                     if not self._try_ydotool('type', '--', ''.join(buf)):
                         return False
                     buf = []
-                if not self._try_ydotool('key', *_DK_CHAR_TO_KEY[ch]):
+                if not self._try_ydotool('key', *self._keycode_map[ch]):
                     return False
             else:
                 buf.append(ch)
