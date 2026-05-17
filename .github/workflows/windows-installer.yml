@@ -36,10 +36,7 @@ jobs:
 
       - name: Install Inno Setup
         shell: pwsh
-        run: |
-          $url = "https://files.jrsoftware.org/is/6/innosetup-6.3.3.exe"
-          Invoke-WebRequest $url -OutFile innosetup.exe
-          Start-Process innosetup.exe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
+        run: choco install innosetup -y --no-progress
 
       - name: Build installers
         shell: pwsh
@@ -174,3 +171,16 @@ jobs:
           git diff --cached --quiet && echo "no manifest changes" && exit 0
           git commit -m "chore: update winget manifests for $TAG"
           git push origin main
+
+      - name: Submit PR to microsoft/winget-pkgs
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN }}
+        shell: pwsh
+        run: |
+          $version = "${{ env.TAG }}" -replace '^v',''
+          winget install --id Microsoft.WingetCreate --source winget `
+            --accept-package-agreements --accept-source-agreements --silent
+          wingetcreate submit `
+            --token $env:WINGET_TOKEN `
+            --prtitle "New version: FactusConsulting.WhisperDictate $version" `
+            .\manifests\
