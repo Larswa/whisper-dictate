@@ -91,27 +91,36 @@ Or after the venv is built:
 
 ## Windows 10 / 11
 
+### Install via installer (recommended)
+
+Download the `.exe` installer from
+[GitHub Releases](https://github.com/FactusConsulting/whisper-dictate/releases/latest):
+
+- **`whisper-dictate-windows-cpu-setup.exe`** — works on all machines
+- **`whisper-dictate-windows-nvidia-setup.exe`** — NVIDIA GPU acceleration
+
+Double-click the installer. It installs to `%LOCALAPPDATA%\Programs\WhisperDictate`
+(no admin required) and adds the directory to your user PATH.
+
 ### Install via winget
 
-```powershell
-winget install --manifest "https://raw.githubusercontent.com/FactusConsulting/whisper-dictate/main/manifests/FactusConsulting.WhisperDictate.yaml"
-```
-
-This installs the CPU build (works on all machines). NVIDIA GPU is used
-automatically at runtime if present. The installer adds whisper-dictate
-to your user PATH.
-
-After installing, run the one-time setup (downloads Python 3.12 via
-winget if needed, builds a local venv, downloads the Whisper model ~1.5 GB):
+Once accepted into the winget package index (PR pending):
 
 ```powershell
-setup.cmd
+winget install FactusConsulting.WhisperDictate
 ```
 
-### Install manually
+> **Note:** `winget install --manifest <path-or-url>` requires the
+> `LocalManifestFiles` policy to be enabled by an administrator.
+> Use the `.exe` installer above if you don't have admin access.
+
+### Install manually (zip)
 
 Download the zip from [GitHub Releases](https://github.com/FactusConsulting/whisper-dictate/releases/latest),
 unzip anywhere, and double-click **`setup.cmd`**.
+
+First-time setup downloads Python 3.12 via winget (if needed), builds a
+local venv, and downloads the Whisper model (~1.5 GB).
 
 ### Start
 

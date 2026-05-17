@@ -1,8 +1,8 @@
 name: windows-installer
 
 # Triggers after the main release workflow creates the GitHub Release.
-# Builds Inno Setup .exe installers (CPU + NVIDIA), uploads them to the
-# release, and commits updated winget manifests to main.
+# Builds Inno Setup .exe installers (CPU + NVIDIA + AMD), uploads them to
+# the release, and commits updated winget manifests to main.
 
 on:
   release:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to build installer for, e.g. v0.2.21'
+        description: 'Release tag to build installer for, e.g. v0.2.22'
         required: true
 
 permissions:
@@ -30,7 +30,7 @@ jobs:
             echo "TAG=${{ github.event.release.tag_name }}" >> "$GITHUB_ENV"
           fi
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
           ref: ${{ env.TAG }}
 
@@ -45,14 +45,15 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ env.TAG }}" -replace '^v',''
-          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          foreach ($variant in @("cpu","nvidia","amd")) {
-            & $iscc /DVERSION=$version /DVARIANT=$variant installer\whisper-dictate.iss
-            if ($LASTEXITCODE -ne 0) { throw "ISCC failed for $variant" }
-          }
-          # amd uses cpu requirements — copy to avoid a separate req file
+          $iscc    = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          $outDir  = "$PWD\Output"
+          New-Item -ItemType Directory -Force $outDir | Out-Null
           if (!(Test-Path "requirements-amd.txt")) {
             Copy-Item "requirements-cpu.txt" "requirements-amd.txt"
+          }
+          foreach ($variant in @("cpu","nvidia","amd")) {
+            & $iscc /DVERSION=$version /DVARIANT=$variant /O"$outDir" installer\whisper-dictate.iss
+            if ($LASTEXITCODE -ne 0) { throw "ISCC failed for $variant" }
           }
 
       - name: Compute SHA256 hashes
@@ -62,9 +63,9 @@ jobs:
           foreach ($f in Get-ChildItem "Output\*.exe") {
             $hash = (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower()
             "$($f.Name)=$hash" | Tee-Object -Append sha256sums.txt
-            $out += [pscustomobject]@{ File=$f.Name; SHA256=$hash }
+            $out += [pscustomobject]@{ File = $f.Name; SHA256 = $hash }
           }
-          $out | ConvertTo-Json | Set-Content sha256sums.json
+          $out | ConvertTo-Json | Set-Content sha256sums.json -Encoding utf8
           Get-Content sha256sums.txt
 
       - name: Upload installers to release
@@ -84,87 +85,83 @@ jobs:
 
           $cpuHash    = ($hashes | Where-Object File -like "*-cpu-*").SHA256
           $nvidiaHash = ($hashes | Where-Object File -like "*-nvidia-*").SHA256
-          $amdHash    = ($hashes | Where-Object File -like "*-amd-*").SHA256
 
           $baseUrl = "https://github.com/$repo/releases/download/$tag"
+          $date    = Get-Date -Format 'yyyy-MM-dd'
+          $pid     = '{7B3F8A2C-4E1D-4F9A-B5C6-D2E8F0A1C3B7}_is1'
 
           New-Item -ItemType Directory -Force manifests | Out-Null
 
-          # Version manifest
-          @"
-PackageIdentifier: FactusConsulting.WhisperDictate
-PackageVersion: $version
-DefaultLocale: en-US
-ManifestType: version
-ManifestVersion: 1.6.0
-"@ | Set-Content "manifests\FactusConsulting.WhisperDictate.yaml"
+          @(
+            "PackageIdentifier: FactusConsulting.WhisperDictate",
+            "PackageVersion: $version",
+            "DefaultLocale: en-US",
+            "ManifestType: version",
+            "ManifestVersion: 1.6.0"
+          ) | Set-Content "manifests\FactusConsulting.WhisperDictate.yaml" -Encoding utf8
 
-          # Locale manifest
-          @"
-PackageIdentifier: FactusConsulting.WhisperDictate
-PackageVersion: $version
-PackageLocale: en-US
-Publisher: FactusConsulting
-PublisherUrl: https://github.com/FactusConsulting
-PackageName: whisper-dictate
-PackageUrl: https://github.com/$repo
-License: MIT
-LicenseUrl: https://github.com/$repo/blob/main/LICENSE
-ShortDescription: Local push-to-talk dictation — speak prompts instead of typing them
-Description: >-
-  App-agnostic push-to-talk dictation. Hold a key, speak quietly but clearly,
-  release — the transcribed text is injected into whatever window has focus.
-  Whisper runs fully locally on your own machine; nothing leaves the box.
-Tags:
-  - dictation
-  - speech-to-text
-  - whisper
-  - voice
-  - ai
-ManifestType: defaultLocale
-ManifestVersion: 1.6.0
-"@ | Set-Content "manifests\FactusConsulting.WhisperDictate.locale.en-US.yaml"
+          @(
+            "PackageIdentifier: FactusConsulting.WhisperDictate",
+            "PackageVersion: $version",
+            "PackageLocale: en-US",
+            "Publisher: FactusConsulting",
+            "PublisherUrl: https://github.com/FactusConsulting",
+            "PackageName: whisper-dictate",
+            "PackageUrl: https://github.com/$repo",
+            "License: MIT",
+            "LicenseUrl: https://github.com/$repo/blob/main/LICENSE",
+            "ShortDescription: Local push-to-talk dictation -- speak prompts instead of typing them",
+            "Description: >-",
+            "  App-agnostic push-to-talk dictation. Hold a key, speak quietly but clearly,",
+            "  release -- the transcribed text is injected into whatever window has focus.",
+            "  Whisper runs fully locally on your own machine; nothing leaves the box.",
+            "Tags:",
+            "  - dictation",
+            "  - speech-to-text",
+            "  - whisper",
+            "  - voice",
+            "  - ai",
+            "ManifestType: defaultLocale",
+            "ManifestVersion: 1.6.0"
+          ) | Set-Content "manifests\FactusConsulting.WhisperDictate.locale.en-US.yaml" -Encoding utf8
 
-          # Installer manifest
-          @"
-PackageIdentifier: FactusConsulting.WhisperDictate
-PackageVersion: $version
-Installers:
-  - Architecture: x64
-    Scope: user
-    InstallerType: inno
-    InstallerUrl: $baseUrl/whisper-dictate-windows-cpu-setup.exe
-    InstallerSha256: $cpuHash
-    ProductCode: '{7B3F8A2C-4E1D-4F9A-B5C6-D2E8F0A1C3B7}_is1'
-    InstallerSwitches:
-      Silent: /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-    InstallerSuccessCodes: [0]
-    ReleaseDate: $(Get-Date -Format 'yyyy-MM-dd')
-    AppsAndFeaturesEntries:
-      - DisplayName: whisper-dictate
-        Publisher: FactusConsulting
-        DisplayVersion: $version
-        ProductCode: '{7B3F8A2C-4E1D-4F9A-B5C6-D2E8F0A1C3B7}_is1'
-  - Architecture: x64
-    Scope: user
-    InstallerType: inno
-    InstallerUrl: $baseUrl/whisper-dictate-windows-nvidia-setup.exe
-    InstallerSha256: $nvidiaHash
-    ProductCode: '{7B3F8A2C-4E1D-4F9A-B5C6-D2E8F0A1C3B7}_is1'
-    InstallerSwitches:
-      Silent: /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-    InstallerSuccessCodes: [0]
-    ReleaseDate: $(Get-Date -Format 'yyyy-MM-dd')
-    Markets:
-      AllowedMarkets: []
-    AppsAndFeaturesEntries:
-      - DisplayName: whisper-dictate (NVIDIA GPU)
-        Publisher: FactusConsulting
-        DisplayVersion: $version
-        ProductCode: '{7B3F8A2C-4E1D-4F9A-B5C6-D2E8F0A1C3B7}_is1'
-ManifestType: installer
-ManifestVersion: 1.6.0
-"@ | Set-Content "manifests\FactusConsulting.WhisperDictate.installer.yaml"
+          @(
+            "PackageIdentifier: FactusConsulting.WhisperDictate",
+            "PackageVersion: $version",
+            "Installers:",
+            "  - Architecture: x64",
+            "    Scope: user",
+            "    InstallerType: inno",
+            "    InstallerUrl: $baseUrl/whisper-dictate-windows-cpu-setup.exe",
+            "    InstallerSha256: $cpuHash",
+            "    ProductCode: '$pid'",
+            "    InstallerSwitches:",
+            "      Silent: /VERYSILENT /SUPPRESSMSGBOXES /NORESTART",
+            "    InstallerSuccessCodes: [0]",
+            "    ReleaseDate: $date",
+            "    AppsAndFeaturesEntries:",
+            "      - DisplayName: whisper-dictate",
+            "        Publisher: FactusConsulting",
+            "        DisplayVersion: $version",
+            "        ProductCode: '$pid'",
+            "  - Architecture: x64",
+            "    Scope: user",
+            "    InstallerType: inno",
+            "    InstallerUrl: $baseUrl/whisper-dictate-windows-nvidia-setup.exe",
+            "    InstallerSha256: $nvidiaHash",
+            "    ProductCode: '$pid'",
+            "    InstallerSwitches:",
+            "      Silent: /VERYSILENT /SUPPRESSMSGBOXES /NORESTART",
+            "    InstallerSuccessCodes: [0]",
+            "    ReleaseDate: $date",
+            "    AppsAndFeaturesEntries:",
+            "      - DisplayName: whisper-dictate (NVIDIA GPU)",
+            "        Publisher: FactusConsulting",
+            "        DisplayVersion: $version",
+            "        ProductCode: '$pid'",
+            "ManifestType: installer",
+            "ManifestVersion: 1.6.0"
+          ) | Set-Content "manifests\FactusConsulting.WhisperDictate.installer.yaml" -Encoding utf8
 
       - name: Commit updated manifests to main
         shell: bash
