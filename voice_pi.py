@@ -389,10 +389,19 @@ class Dictate:
             import subprocess, shutil
             paste_key = os.environ.get("VOICEPI_PASTE_KEY", "ctrl+shift+v")
             if shutil.which("wl-copy"):
-                subprocess.run(["wl-copy", "--", text],
-                               capture_output=True, timeout=5)
+                # wl-copy skal leve til compositor beder om clipboard-indholdet.
+                # Kør i baggrunden, send paste-tasten, og vent på at wl-copy afslutter.
+                proc = subprocess.Popen(["wl-copy", "--", text],
+                                        stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.DEVNULL)
+                time.sleep(0.15)  # lad wl-copy nå at gøre krav på clipboard
                 print(f"[inject] wl-copy → ydotool key {paste_key}", flush=True)
-                if self._try_ydotool("key", paste_key):
+                ok = self._try_ydotool("key", paste_key)
+                try:
+                    proc.wait(timeout=3)  # venter på at paste-request er færdig
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                if ok:
                     return
             print("[inject] wl-copy/ydotool fejlede — fallback pynput", flush=True)
             self._kb.type(text)
