@@ -87,6 +87,33 @@ launches. Hold **Right Ctrl**, speak, release.
 | `--model NAME` | Whisper model (default `large-v3-turbo`; env `VOICEPI_MODEL`) |
 | `--device D` | `auto`/`cuda`/`cpu` (default `auto`; env `VOICEPI_DEVICE`) |
 
+## Languages
+
+Pass any [ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) code
+that Whisper supports to `--lang`. Omit it (or use `--autodetect`) to let
+Whisper guess — less reliable on short or soft utterances.
+
+| Code | Language | Code | Language |
+|------|----------|------|----------|
+| `da` | Danish | `es` | Spanish |
+| `en` | English | `pt` | Portuguese |
+| `de` | German | `it` | Italian |
+| `fr` | French | `ro` | Romanian |
+| `sv` | Swedish | `pl` | Polish |
+| `nb` | Norwegian Bokmål | `ru` | Russian |
+| `nn` | Norwegian Nynorsk | `cs` | Czech |
+| `nl` | Dutch | `sk` | Slovak |
+| `fi` | Finnish | `hu` | Hungarian |
+| `el` | Greek | `uk` | Ukrainian |
+| `tr` | Turkish | `ar` | Arabic |
+| `zh` | Chinese | `hi` | Hindi |
+| `ja` | Japanese | `ko` | Korean |
+| `vi` | Vietnamese | `id` | Indonesian |
+
+Whisper large-v3-turbo supports 99 languages in total — the above are the most
+commonly used. On Wayland (Ubuntu 26.04), `--lang da` also auto-sets the DK
+keyboard layout so that æøå are injected correctly.
+
 ## Wayland details (Ubuntu 24.04/26.04)
 
 **Text injection — direct evdev keycodes:**
@@ -133,8 +160,8 @@ faster-whisper (CPU or NVIDIA GPU)
 boost quiet audio → VAD → transcribe
    │
    ▼
-wl-clipboard + Ctrl+V (--paste, Wayland)
-or pynput type()   (X11/Win)
+ydotool evdev keycodes (Wayland)
+or pynput type()  (X11/Win)
    │
    ▼
 text at cursor in whatever window is focused
