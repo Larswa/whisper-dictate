@@ -84,6 +84,14 @@ TARGET_DBFS = float(os.environ.get("VOICEPI_TARGET_DBFS", "-20"))
 # utterances (and avoids da+English mixing flip-flop). "da", "en",
 # "de", "fr", … ; --autodetect sets this to None (Whisper guesses).
 LANG = os.environ.get("VOICEPI_LANG")  # None → Whisper auto-detects
+# beam_size=1 is fastest on CPU; raise to 5 for better accuracy at the
+# cost of 3-4× slower transcription. VOICEPI_BEAM_SIZE=5 is useful on
+# machines without GPU where accuracy matters more than latency.
+BEAM_SIZE = int(os.environ.get("VOICEPI_BEAM_SIZE", "1"))
+# Optional context hint fed to Whisper before each utterance. Improves
+# recognition of domain-specific terms (product names, jargon, names).
+# Example: VOICEPI_INITIAL_PROMPT="Winget, whisper-dictate, FactusConsulting"
+INITIAL_PROMPT = os.environ.get("VOICEPI_INITIAL_PROMPT") or None
 
 
 def _resolve_device(want: str) -> tuple[str, str]:
@@ -150,12 +158,8 @@ def _transcribe(model: WhisperModel, pcm: np.ndarray,
     segments, _ = model.transcribe(
         audio,
         language=lang,  # None → Whisper auto-detects
-        # greedy decode: for short dictation turns beam width is the
-        # dominant latency cost (~5× the GEMM work) and buys almost
-        # nothing — soft-speech robustness lives in the encoder, which
-        # beam width doesn't touch. One temperature fallback still
-        # rescues a genuinely low-SNR quiet utterance.
-        beam_size=1,
+        initial_prompt=INITIAL_PROMPT,  # domain-specific term hints
+        beam_size=BEAM_SIZE,
         temperature=[0.0, 0.2],
         # short turns: don't carry prior text — it makes Whisper
         # hallucinate continuations on near-silent input.
@@ -186,16 +190,36 @@ _LANG_TO_XKB = {
     "es": "es", "it": "it", "ru": "ru",
 }
 
-# DK-layout: numeriske evdev-keycodes for æøå (og store varianter).
+# DK-layout: numeriske evdev-keycodes for tegn der er placeret anderledes end US.
 # ydotool key kræver format <code>:<pressed> — symbolske navne ignoreres stille.
-# KEY_LEFTBRACE=26 (å), KEY_SEMICOLON=39 (æ), KEY_APOSTROPHE=40 (ø), KEY_LEFTSHIFT=42
+# ydotool type bruger US-layout internt; tegn med forskellig placering i DK
+# skal sendes som raw keycodes så compositor kan anvende DK-layoutet korrekt.
+#
+# Relevante scancodes:
+#   KEY_2=3  KEY_7=8  KEY_MINUS=12  KEY_LEFTBRACE=26
+#   KEY_COMMA=51  KEY_DOT=52  KEY_SLASH=53
+#   KEY_SEMICOLON=39  KEY_APOSTROPHE=40  KEY_LEFTSHIFT=42
+#
+# DK vs US forskelle (tegn ydotool type sender forkert på DK-layout):
+#   US shift+KEY_SLASH(53)=?  →  DK shift+KEY_SLASH=_   (bug: ? → _)
+#   US KEY_MINUS(12)=-        →  DK KEY_MINUS=+          (bug: - → +)
+#   US shift+KEY_SEMICOLON(39)=: → DK shift+KEY_SEMICOLON=Æ (bug: : → Æ)
 _DK_CHAR_TO_KEY: dict[str, list[str]] = {
+    # Bogstaver
     'å': ['26:1', '26:0'],
     'Å': ['42:1', '26:1', '26:0', '42:0'],
     'æ': ['39:1', '39:0'],
     'Æ': ['42:1', '39:1', '39:0', '42:0'],
     'ø': ['40:1', '40:0'],
     'Ø': ['42:1', '40:1', '40:0', '42:0'],
+    # Tegnsætning med forskellig placering i DK vs US
+    '?': ['42:1', '12:1', '12:0', '42:0'],  # DK: shift+KEY_MINUS
+    '-': ['53:1', '53:0'],                   # DK: KEY_SLASH
+    '_': ['42:1', '53:1', '53:0', '42:0'],  # DK: shift+KEY_SLASH
+    ':': ['42:1', '52:1', '52:0', '42:0'],  # DK: shift+KEY_DOT
+    ';': ['42:1', '51:1', '51:0', '42:0'],  # DK: shift+KEY_COMMA
+    '/': ['42:1', '8:1', '8:0', '42:0'],    # DK: shift+KEY_7
+    '"': ['42:1', '3:1', '3:0', '42:0'],    # DK: shift+KEY_2
 }
 
 
@@ -352,18 +376,23 @@ class Dictate:
             return False
 
     def _wayland_type(self, text: str) -> bool:
-        # Split på DK-specialtegn: ASCII-dele sendes via ydotool type,
-        # æøå (og store varianter) sendes som numeriske evdev-keycodes
-        # via ydotool key — compositor fortolker dem via XKB dk-layout.
-        for part in re.split(r'([åÅæÆøØ])', text):
-            if not part:
-                continue
-            if part in _DK_CHAR_TO_KEY:
-                if not self._try_ydotool('key', *_DK_CHAR_TO_KEY[part]):
+        # Tegn i _DK_CHAR_TO_KEY sendes som numeriske evdev-keycodes (ydotool key)
+        # så compositor anvender DK-layoutet korrekt. Øvrige tegn akkumuleres og
+        # sendes samlet via ydotool type for at minimere antal processer.
+        buf: list[str] = []
+        for ch in text:
+            if ch in _DK_CHAR_TO_KEY:
+                if buf:
+                    if not self._try_ydotool('type', '--', ''.join(buf)):
+                        return False
+                    buf = []
+                if not self._try_ydotool('key', *_DK_CHAR_TO_KEY[ch]):
                     return False
             else:
-                if not self._try_ydotool('type', '--', part):
-                    return False
+                buf.append(ch)
+        if buf:
+            if not self._try_ydotool('type', '--', ''.join(buf)):
+                return False
         return True
 
     def _try_ydotool(self, *args: str) -> bool:
