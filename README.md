@@ -268,6 +268,10 @@ boost. The `[cap]` line prints loudness, gain, noise floor and **SNR** per
 accepted utterance — `snr` tells you if the mic is the bottleneck: ≳25 dB
 excellent, 15–25 dB workable, <15 dB the mic or room is the limit.
 
+Full reference — every `[cap]`/`[gate]`/`[stt]` field, what good vs bad looks
+like, and how to compare two microphones: see
+[MICROPHONE.md](MICROPHONE.md).
+
 ## Technical documentation
 
 Architecture, data flow, Wayland injection details, evdev keycode
