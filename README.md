@@ -307,6 +307,28 @@ gh workflow run windows-installer.yml -f tag=v0.2.1
 That builds the versioned installers, uploads them to the Release,
 regenerates the winget manifests, and submits a winget-pkgs PR.
 
+## Wayland keyboard-layout testing status
+
+Wayland text injection uses per-layout evdev keycode maps. Real-hardware
+verification is incomplete — help wanted (open an issue/PR with results):
+
+| Layout(s) | Method | Status |
+|---|---|---|
+| `dk`, `no` | direct keycodes | ✅ verified on real hardware |
+| `se`, `de`, `fi` | direct keycodes | ⚠️ implemented, **not** hardware-tested |
+| `ua` | direct keycodes (full Cyrillic) | ⚠️ implemented, **not** hardware-tested |
+| `es`, `pt`, `br`, `pl` | dead-key / AltGr composition | ⚠️ implemented, **not** hardware-tested; composition is compositor-dependent and the highest-risk path |
+| `fr` (AZERTY), `it`, `nl` | — | ❌ **no keycode map** — non-ASCII for these layouts is dropped on Wayland; a `[inject] advarsel:` line lists the affected characters |
+
+Notes:
+
+- `pt` covers **European** Portuguese. Brazilian users get the `br` map only
+  when the system keyboard is `br` (auto-detected from `/etc/default/keyboard`)
+  or `VOICEPI_XKB_LAYOUT=br` is set — `--lang pt` alone always selects EU `pt`,
+  because the spoken-language code is region-less.
+- For an unmapped layout, set `VOICEPI_XKB_LAYOUT` to a mapped layout with the
+  same physical key positions if one applies, or expect ASCII-only injection.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

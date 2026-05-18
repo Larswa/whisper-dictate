@@ -226,13 +226,25 @@ class LayoutKeycodeMapTests(unittest.TestCase):
     def test_uk_maps_to_ua(self):
         self.assertEqual(self.vp._LANG_TO_XKB.get('uk'), 'ua')
 
-    def test_keycodes_are_press_release_pairs(self):
-        # Hvert tegn skal have et lige antal codes (press+release pr. tast)
+    def test_keycodes_are_balanced_per_key(self):
+        # Stærkere end "lige antal codes": hvert keycode skal have lige
+        # mange press (N:1) og release (N:0) i en sekvens — ellers hænger
+        # fx Shift(42)/AltGr(100) og korrumperer efterfølgende input.
+        import collections
         for layout, m in self.vp._LAYOUT_KEYCODES.items():
             for ch, codes in m.items():
                 with self.subTest(layout=layout, char=ch):
-                    self.assertEqual(len(codes) % 2, 0,
-                                     f"Ulige antal keycodes for '{ch}'")
+                    bal: "collections.Counter[str]" = collections.Counter()
+                    for tok in codes:
+                        key, sep, state = tok.partition(":")
+                        self.assertTrue(sep and state in ("0", "1"),
+                                        f"Ugyldig token {tok!r} for '{ch}'")
+                        bal[key] += 1 if state == "1" else -1
+                    for key, net in bal.items():
+                        self.assertEqual(
+                            net, 0,
+                            f"Keycode {key} ubalanceret for '{ch}' i "
+                            f"layout '{layout}' (net={net} press-release)")
 
 
 class DetectXkbLayoutTests(unittest.TestCase):

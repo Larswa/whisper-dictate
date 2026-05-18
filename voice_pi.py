@@ -599,6 +599,15 @@ class Dictate:
             return False
 
     def _wayland_type(self, text: str) -> bool:
+        # ydotool type (v1.0.4, no libxkbcommon) silently DROPS non-ASCII
+        # that is not covered by the layout keycode map. Surface exactly
+        # which characters are lost instead of failing silently.
+        dropped = sorted({ch for ch in text
+                          if ord(ch) > 127 and ch not in self._keycode_map})
+        if dropped:
+            print(f"[inject] advarsel: {len(dropped)} tegn uden keycode-map "
+                  f"for layout '{self._xkb_layout or '?'}' droppes af "
+                  f"ydotool type: {''.join(dropped)}", flush=True)
         for op in _build_ydotool_ops(text, self._keycode_map):
             if not self._try_ydotool(*op):
                 return False
@@ -626,7 +635,11 @@ class Dictate:
             if subprocess.run(["pgrep", "-x", "ydotoold"], capture_output=True).returncode == 0:
                 print("[inject] ydotoold startet via systemd", flush=True)
                 return
-        # Fallback: start direkte med korrekt XKB-env
+        # Fallback: start ydotoold direkte. NB: den autoritative kilde er
+        # sessionens XKB-layout, som Mutter applicerer på uinput-enheden —
+        # ikke ydotoolds egen env. XKB_DEFAULT_LAYOUT her er kun best-effort
+        # for ydotoold-builds der selv læser den; den prioriterede vej er
+        # systemd-servicen ovenfor (har XKB konfigureret korrekt).
         env = dict(os.environ)
         if self._xkb_layout:
             env["XKB_DEFAULT_LAYOUT"] = self._xkb_layout
@@ -668,12 +681,22 @@ class Dictate:
         # CPU transcription takes 4+ seconds — focus has drifted to the
         # terminal by then. Restore the window that was focused when the
         # user pressed the PTT key.
-        title = self._inject_target_title or '?'
-        if on_wayland and self._restore_target_focus():
-            print(f"[inject] → '{title}' (refocused)", flush=True)
+        # Log the TEXT being injected (not a window title). Wayland cannot
+        # query/refocus the active window, so the old "→ '?'" looked like
+        # a literal question mark was being typed — it was just an unknown
+        # target title. Show the target only when actually known.
+        preview = " ".join(text.split())
+        if len(preview) > 60:
+            preview = preview[:57] + "..."
+        refocused = on_wayland and self._restore_target_focus()
+        target = self._inject_target_title
+        if refocused:
+            print(f'[inject] → "{preview}"  (refocused: {target})', flush=True)
             time.sleep(0.1)
+        elif target:
+            print(f'[inject] → "{preview}"  (target: {target})', flush=True)
         else:
-            print(f"[inject] → '{title}'", flush=True)
+            print(f'[inject] → "{preview}"', flush=True)
 
         if on_wayland:
             # ASCII via ydotool type, æøå via direkte evdev-keycodes (ydotool key).
