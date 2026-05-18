@@ -248,14 +248,17 @@ keyboard layout so that æøå are injected correctly.
 | Env var | Default | Effect |
 |---|---|---|
 | `VOICEPI_TARGET_DBFS` | `-20` | lower (e.g. `-16`) = boost quiet speech harder |
+| `VOICEPI_MIN_INPUT_DBFS` | `-55` | reject raw input quieter than this before Whisper |
+| `VOICEPI_MIN_SNR_DB` | `6` | reject raw input without enough speech-vs-noise contrast |
 | `VOICEPI_MODEL` | `large-v3-turbo` | `large-v3` = slightly better accuracy, slower |
 | `VOICEPI_DEVICE` | `auto` | `cuda`/`cpu` to force; `auto` = NVIDIA if present |
 | `VOICEPI_LANG` | _(auto-detect)_ | spoken-language hint (`da`, `en`, `de`, `fr`…) |
 | `VOICEPI_BEAM_SIZE` | `1` | raise to `5` for better accuracy — 3-4× slower on CPU |
 | `VOICEPI_INITIAL_PROMPT` | _(none)_ | context hint for domain-specific terms, e.g. `"Winget, whisper-dictate"` |
 
-The `[cap]` line prints loudness, gain, noise floor and **SNR** per
-utterance — `snr` tells you if the mic is the bottleneck: ≳25 dB
+The `[gate]` line shows whether the raw input was accepted before gain
+boost. The `[cap]` line prints loudness, gain, noise floor and **SNR** per
+accepted utterance — `snr` tells you if the mic is the bottleneck: ≳25 dB
 excellent, 15–25 dB workable, <15 dB the mic or room is the limit.
 
 ## Technical documentation

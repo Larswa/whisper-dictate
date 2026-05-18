@@ -48,7 +48,9 @@ User holds hotkey
 ┌─────────────────────────────────────────────────────────────┐
 │ PREPROCESSING                                               │
 │                                                             │
-│  int16 frames → float32 → gain boost toward -20 dBFS        │
+│  int16 frames → float32                                    │
+│  raw-input gate: minimum dBFS + speech/noise contrast       │
+│  accepted input → gain boost toward -20 dBFS                │
 │  48 kHz → resample → 16 kHz  (if device only supports 48k)  │
 │  VAD filter (Silero, threshold 0.3)                         │
 │  SNR diagnostics printed per utterance                      │

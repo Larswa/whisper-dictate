@@ -79,6 +79,11 @@ DEVICE = os.environ.get("VOICEPI_DEVICE", "auto")
 # no-speech gate eats it; normalising to ~-20 recovers it without
 # clipping. Lower (e.g. -16) = boost harder.
 TARGET_DBFS = float(os.environ.get("VOICEPI_TARGET_DBFS", "-20"))
+# Raw-input gate before gain boost. Without this, near-silence gets boosted
+# into Whisper's comfort range; with a fixed language hint, Danish silence
+# often decodes as a plausible short phrase such as "Tak."
+MIN_INPUT_DBFS = float(os.environ.get("VOICEPI_MIN_INPUT_DBFS", "-55"))
+MIN_INPUT_SNR_DB = float(os.environ.get("VOICEPI_MIN_SNR_DB", "6"))
 # Spoken-language hint. Whisper large-v3(-turbo) is multilingual; a
 # fixed hint is far more reliable than auto-detect on short/soft
 # utterances (and avoids da+English mixing flip-flop). "da", "en",
@@ -146,12 +151,38 @@ def _boost_quiet(a: np.ndarray) -> np.ndarray:
     return (a * gain).astype(np.float32)
 
 
+def _looks_like_speech(a: np.ndarray) -> tuple[bool, str]:
+    rms = float(np.sqrt(np.mean(a**2)) or 1e-9)
+    raw_dbfs = 20 * np.log10(rms)
+    noise_dbfs, snr_db = _noise_snr(a)
+    if raw_dbfs < MIN_INPUT_DBFS:
+        return False, (
+            f"input too quiet: raw={raw_dbfs:.0f}dBFS "
+            f"< {MIN_INPUT_DBFS:.0f}dBFS"
+        )
+    if snr_db < MIN_INPUT_SNR_DB:
+        return False, (
+            f"no speech contrast: snr={snr_db:.0f}dB "
+            f"< {MIN_INPUT_SNR_DB:.0f}dB"
+        )
+    return True, (
+        f"raw={raw_dbfs:.0f}dBFS noise={noise_dbfs:.0f}dBFS "
+        f"snr={snr_db:.0f}dB"
+    )
+
+
 def _transcribe(model: WhisperModel, pcm: np.ndarray,
                 lang: str | None) -> str:
     # pcm: int16 mono @ 16 kHz straight from sounddevice — already the
     # rate/layout Whisper wants, so no WAV round-trip or resample (that
     # whole path died with the server). Just int16 → float32 → boost.
-    audio = _boost_quiet(pcm.reshape(-1).astype(np.float32) / 32768.0)
+    raw_audio = pcm.reshape(-1).astype(np.float32) / 32768.0
+    ok, gate = _looks_like_speech(raw_audio)
+    if not ok:
+        print(f"[gate] {gate}", flush=True)
+        return ""
+    print(f"[gate] {gate}", flush=True)
+    audio = _boost_quiet(raw_audio)
     dur = len(audio) / SR
     in_dbfs = 20 * np.log10(float(np.sqrt(np.mean(audio**2)) or 1e-9))
     t0 = time.monotonic()
