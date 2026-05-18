@@ -44,6 +44,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 Source: "..\voice_pi.py";        DestDir: "{app}"; Flags: ignoreversion
+Source: "..\vp_*.py";            DestDir: "{app}"; Flags: ignoreversion
 Source: "..\setup.ps1";          DestDir: "{app}"; Flags: ignoreversion
 Source: "..\setup.cmd";          DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md";          DestDir: "{app}"; Flags: ignoreversion

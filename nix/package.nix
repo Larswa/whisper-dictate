@@ -43,6 +43,9 @@ in stdenv.mkDerivation {
     runHook preInstall
 
     install -Dm644 voice_pi.py $out/lib/whisper-dictate/voice_pi.py
+    for _m in vp_*.py; do
+      [ -e "$_m" ] && install -Dm644 "$_m" "$out/lib/whisper-dictate/$_m"
+    done
 
     makeWrapper ${pythonEnv}/bin/python3 $out/bin/whisper-dictate \
       --add-flags "$out/lib/whisper-dictate/voice_pi.py" \

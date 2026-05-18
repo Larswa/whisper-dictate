@@ -48,7 +48,7 @@ jobs:
           set -e
           mkbundle() {   # $1 zip  $2 requirements-file  $3 launchers
             d=whisper-dictate; rm -rf "$d"; mkdir "$d"
-            cp voice_pi.py README.md LICENSE "$d/"
+            cp voice_pi.py vp_*.py README.md LICENSE "$d/"
             cp "$2" "$d/requirements.txt"
             for f in $3; do cp "$f" "$d/"; done
             [ -f "$d/setup.sh" ] && chmod +x "$d/setup.sh"
