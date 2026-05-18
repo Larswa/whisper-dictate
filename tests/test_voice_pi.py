@@ -44,6 +44,120 @@ def load_voice_pi(cuda_devices: int = 0):
     return importlib.import_module("voice_pi")
 
 
+def load_voice_pi_realnp():
+    """Import voice_pi with the REAL numpy (for audio-DSP tests) but the
+    heavy/uninstalled deps stubbed. CI installs numpy (see tests workflow)."""
+    for name in ("voice_pi", "ctranslate2", "faster_whisper",
+                 "sounddevice", "pynput", "pynput.keyboard"):
+        sys.modules.pop(name, None)
+    np_mod = sys.modules.get("numpy")
+    if np_mod is not None and not hasattr(np_mod, "ndarray"):
+        # a fake numpy left by another test — drop it so the real one loads
+        for n in [m for m in list(sys.modules)
+                  if m == "numpy" or m.startswith("numpy.")]:
+            sys.modules.pop(n, None)
+    import numpy  # noqa: F401 — real numpy must import (CI pip-installs it)
+
+    ct = types.ModuleType("ctranslate2")
+    ct.get_cuda_device_count = lambda: 0
+    sys.modules["ctranslate2"] = ct
+    fw = types.ModuleType("faster_whisper")
+    fw.WhisperModel = object
+    sys.modules["faster_whisper"] = fw
+    sys.modules["sounddevice"] = types.ModuleType("sounddevice")
+    pynput = types.ModuleType("pynput")
+    kb = types.ModuleType("keyboard")
+    kb.Controller = object
+    kb.Key = types.SimpleNamespace(
+        ctrl_l=object(), ctrl_r=object(), shift_l=object(),
+        shift_r=object(), alt_l=object(), alt_r=object(), esc=object())
+    kb.Listener = object
+    pynput.keyboard = kb
+    sys.modules["pynput"] = pynput
+    sys.modules["pynput.keyboard"] = kb
+    return importlib.import_module("voice_pi")
+
+
+@contextmanager
+def _capture_stdout():
+    import contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        yield buf
+
+
+class AudioDspTests(unittest.TestCase):
+    """Characterisation tests for the audio DSP with REAL numpy. These pin
+    current behaviour so the upcoming vp_audio.py extraction is provably
+    behaviour-preserving (same asserts, only the import path changes)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.vp = load_voice_pi_realnp()
+        import numpy as np
+        cls.np = np
+
+    # --- _noise_snr ---
+    def test_noise_snr_too_few_frames(self):
+        a = self.np.zeros(1000, dtype=self.np.float32)
+        self.assertEqual(self.vp._noise_snr(a), (-90.0, 0.0))
+
+    def test_noise_snr_constant_signal(self):
+        a = self.np.full(480 * 8, 0.5, dtype=self.np.float32)
+        noise, snr = self.vp._noise_snr(a)
+        self.assertAlmostEqual(noise, -6.0206, places=2)
+        self.assertAlmostEqual(snr, 0.0, places=6)
+
+    def test_noise_snr_contrast_has_high_snr(self):
+        np = self.np
+        a = np.concatenate([
+            np.full(480, 1.0 if i % 2 == 0 else 0.001, dtype=np.float32)
+            for i in range(10)])
+        noise, snr = self.vp._noise_snr(a)
+        self.assertGreater(snr, 40.0)
+        self.assertLess(noise, -40.0)
+
+    # --- _boost_quiet ---
+    def test_boost_quiet_normalises_toward_target(self):
+        np = self.np
+        a = np.full(1920, 0.01, dtype=np.float32)
+        with _capture_stdout():
+            out = self.vp._boost_quiet(a)
+        self.assertEqual(out.dtype, np.float32)
+        rms = float(np.sqrt(np.mean(out ** 2)))
+        self.assertAlmostEqual(20 * np.log10(rms), self.vp.TARGET_DBFS,
+                               places=1)
+
+    def test_boost_quiet_never_clips(self):
+        np = self.np
+        a = np.zeros(1920, dtype=np.float32)
+        a[:10] = 0.9
+        with _capture_stdout():
+            out = self.vp._boost_quiet(a)
+        self.assertLessEqual(float(np.max(np.abs(out))), 0.99 + 1e-6)
+
+    # --- _looks_like_speech ---
+    def test_looks_like_speech_rejects_too_quiet(self):
+        a = self.np.full(1920, 1e-4, dtype=self.np.float32)
+        ok, msg = self.vp._looks_like_speech(a)
+        self.assertFalse(ok)
+        self.assertIn("too quiet", msg)
+
+    def test_looks_like_speech_rejects_flat_signal(self):
+        a = self.np.full(1920, 0.1, dtype=self.np.float32)
+        ok, msg = self.vp._looks_like_speech(a)
+        self.assertFalse(ok)
+        self.assertIn("no speech contrast", msg)
+
+    def test_looks_like_speech_accepts_contrasted_speech(self):
+        np = self.np
+        a = np.concatenate([
+            np.full(480, 0.8 if i % 2 == 0 else 0.05, dtype=np.float32)
+            for i in range(10)])
+        ok, _ = self.vp._looks_like_speech(a)
+        self.assertTrue(ok)
+
+
 class DeviceResolutionTests(unittest.TestCase):
     def test_auto_uses_cuda_when_available(self):
         voice_pi = load_voice_pi(cuda_devices=1)
