@@ -94,6 +94,34 @@ BEAM_SIZE = int(os.environ.get("VOICEPI_BEAM_SIZE", "1"))
 # Example: VOICEPI_INITIAL_PROMPT="Winget, whisper-dictate, FactusConsulting"
 INITIAL_PROMPT = os.environ.get("VOICEPI_INITIAL_PROMPT") or None
 
+# Whisper hallucinerer disse sætninger på kort/stille lyd — ignorer dem.
+_HALLUCINATIONS: frozenset[str] = frozenset({
+    "tak",
+    "tak.",
+    "tak for din opmærksomhed",
+    "tak for din opmærksomhed.",
+    "tak fordi du så med",
+    "tak fordi du så med.",
+    "tak fordi du lyttede med",
+    "tak fordi du lyttede med.",
+    "tak for at du så med",
+    "tak for at du så med.",
+    "tak for at i så med",
+    "tak for at i så med.",
+    "tak fordi i så med",
+    "tak fordi i så med.",
+    "thank you",
+    "thank you.",
+    "thank you for watching",
+    "thank you for watching.",
+    "thank you for listening",
+    "thank you for listening.",
+    "thanks for watching",
+    "thanks for watching.",
+    "undertekster af",
+    "undertekstet af",
+})
+
 
 def build_arg_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
@@ -273,6 +301,9 @@ class Dictate(InjectMixin):
         if not text:
             print("  (heard nothing — speak a touch louder / mic closer)",
                   flush=True)
+            return
+        if text.lower().rstrip() in _HALLUCINATIONS:
+            print(f"  (hallucination filtreret: {text!r})", flush=True)
             return
         self._inject(text)
 
