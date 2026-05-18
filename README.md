@@ -236,7 +236,7 @@ Whisper guess — less reliable on short or soft utterances.
 | `de` | German | `it` | Italian |
 | `fr` | French | `ro` | Romanian |
 | `sv` | Swedish | `pl` | Polish |
-| `nb` | Norwegian Bokmål | `ru` | Russian |
+| `nb` | Norwegian Bokmål | `uk` | Ukrainian |
 | `nn` | Norwegian Nynorsk | `cs` | Czech |
 | `nl` | Dutch | `sk` | Slovak |
 | `fi` | Finnish | `hu` | Hungarian |
