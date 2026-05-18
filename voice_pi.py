@@ -69,6 +69,7 @@ from faster_whisper import WhisperModel  # noqa: E402 — must follow bootstrap
 
 SR = 16000
 MODEL_NAME = os.environ.get("VOICEPI_MODEL", "large-v3-turbo")
+VALID_DEVICES = ("auto", "cuda", "cpu")
 # Compute device: "auto" tries the GPU (CUDA/NVIDIA) and falls back to
 # CPU; force with "cuda" or "cpu". faster-whisper/ctranslate2 only
 # accelerate on NVIDIA — an AMD GPU box runs CPU. CPU is usable but
@@ -105,7 +106,10 @@ def _resolve_device(want: str) -> tuple[str, str]:
     # accelerate on NVIDIA, so an AMD-GPU machine resolves to "cpu"
     # (same as a no-GPU box). int8_float16 on GPU, int8 on CPU.
     want = (want or "auto").lower()
-    if want in ("cuda", "gpu"):
+    if want not in VALID_DEVICES:
+        raise ValueError(f"invalid device '{want}' (expected: "
+                         f"{', '.join(VALID_DEVICES)})")
+    if want == "cuda":
         return "cuda", "int8_float16"
     if want == "cpu":
         return "cpu", "int8"
@@ -116,6 +120,33 @@ def _resolve_device(want: str) -> tuple[str, str]:
     except Exception:  # noqa: BLE001 — any failure → safe CPU fallback
         pass
     return "cpu", "int8"
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--key", default="ctrl_r",
+                    help="pynput Key name held to talk (ctrl_r, alt_r, f9…) "
+                         "or chord: shift_r+ctrl_r")
+    ap.add_argument("--model", default=MODEL_NAME,
+                    help="Whisper model (default large-v3-turbo, fastest; "
+                         "env VOICEPI_MODEL)")
+    ap.add_argument("--lang", default=LANG,
+                    help="spoken-language hint: da, en, de, fr… "
+                         "(env VOICEPI_LANG) — omit to let Whisper auto-detect")
+    ap.add_argument("--autodetect", action="store_true",
+                    help="explicitly auto-detect language (alias for omitting --lang)")
+    g = ap.add_mutually_exclusive_group()
+    g.add_argument("--paste", action="store_const", dest="mode",
+                   const="paste",
+                   help="inject via clipboard + Ctrl+V on X11/Windows "
+                        "(on Wayland direct evdev keycodes are always used)")
+    g.add_argument("--no-type", action="store_const", dest="mode",
+                   const="print", help="just print, don't inject")
+    ap.add_argument("--device", default=DEVICE, choices=VALID_DEVICES,
+                    help="auto|cuda|cpu (default auto; env VOICEPI_DEVICE). "
+                         "auto = NVIDIA GPU if present, else CPU")
+    ap.set_defaults(mode="type")
+    return ap
 
 
 def _noise_snr(a: np.ndarray) -> tuple[float, float]:
@@ -686,29 +717,7 @@ class Dictate:
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--key", default="ctrl_r",
-                    help="pynput Key name held to talk (ctrl_r, alt_r, f9…) "
-                         "or chord: shift_r+ctrl_r")
-    ap.add_argument("--model", default=MODEL_NAME,
-                    help="Whisper model (default large-v3-turbo, fastest; "
-                         "env VOICEPI_MODEL)")
-    ap.add_argument("--lang", default=LANG,
-                    help="spoken-language hint: da, en, de, fr… "
-                         "(env VOICEPI_LANG) — omit to let Whisper auto-detect")
-    ap.add_argument("--autodetect", action="store_true",
-                    help="explicitly auto-detect language (alias for omitting --lang)")
-    g = ap.add_mutually_exclusive_group()
-    g.add_argument("--paste", action="store_const", dest="mode",
-                   const="paste",
-                   help="inject via clipboard + Ctrl+V on X11/Windows "
-                        "(on Wayland direct evdev keycodes are always used)")
-    g.add_argument("--no-type", action="store_const", dest="mode",
-                   const="print", help="just print, don't inject")
-    ap.add_argument("--device", default=DEVICE,
-                    help="auto|cuda|cpu (default auto; env VOICEPI_DEVICE). "
-                         "auto = NVIDIA GPU if present, else CPU")
-    ap.set_defaults(mode="type")
+    ap = build_arg_parser()
     a = ap.parse_args()
     lang = None if (a.autodetect or not a.lang) else a.lang
 
@@ -718,7 +727,10 @@ if __name__ == "__main__":
         xkb = _LANG_TO_XKB.get(lang, lang)
         os.environ["XKB_DEFAULT_LAYOUT"] = xkb
 
-    dev, ctype = _resolve_device(a.device)
+    try:
+        dev, ctype = _resolve_device(a.device)
+    except ValueError as e:
+        ap.error(str(e))
 
     print(f"loading Whisper {a.model} on {dev} ({ctype})… "
           f"first run downloads the model", flush=True)

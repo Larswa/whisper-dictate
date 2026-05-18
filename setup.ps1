@@ -25,19 +25,49 @@ $here   = $PSScriptRoot
 $venv   = Join-Path $env:USERPROFILE 'voice-pi-venv'
 $venvPy = Join-Path $venv 'Scripts\python.exe'
 $app    = Join-Path $here 'voice_pi.py'
-
-# Requirements: bundle's requirements.txt wins; else GPU file (dev
-# checkout default on Windows); else the CPU file.
-$req = @(
-  (Join-Path $here 'requirements.txt'),
-  (Join-Path $here 'requirements-gpu.txt'),
-  (Join-Path $here 'requirements-cpu.txt')
-) | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $req) { throw "no requirements file found next to setup.ps1" }
+$reqStamp = Join-Path $venv '.requirements.sha256'
 
 # Default launch args if the user passed none (turbo is the model
 # default inside voice_pi.py, so --paste is enough).
 [string[]]$runArgs = if ($args.Count -gt 0) { $args } else { @('--paste') }
+
+function Test-WantsCuda([string[]]$argv) {
+  $envDevice = if ($env:VOICEPI_DEVICE) { $env:VOICEPI_DEVICE.ToLowerInvariant() } else { '' }
+  if ($envDevice -eq 'cuda') { return $true }
+  for ($i = 0; $i -lt $argv.Count; $i++) {
+    if ($argv[$i] -eq '--device' -and ($i + 1) -lt $argv.Count -and $argv[$i + 1] -eq 'cuda') { return $true }
+    if ($argv[$i] -eq '--device=cuda') { return $true }
+  }
+  return $false
+}
+
+function Test-NvidiaPresent {
+  if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) { return $true }
+  try {
+    $gpus = Get-CimInstance Win32_VideoController -ErrorAction Stop
+    return [bool]($gpus | Where-Object { $_.Name -match 'NVIDIA' } | Select-Object -First 1)
+  } catch {
+    return $false
+  }
+}
+
+function Select-Requirements([string[]]$argv) {
+  $bundleReq = Join-Path $here 'requirements.txt'
+  $gpuReq = Join-Path $here 'requirements-gpu.txt'
+  $cpuReq = Join-Path $here 'requirements-cpu.txt'
+  if (Test-Path $bundleReq) { return $bundleReq }
+  if (Test-WantsCuda $argv) {
+    if (Test-Path $gpuReq) { return $gpuReq }
+    throw "--device cuda requested, but requirements-gpu.txt is missing"
+  }
+  if ((Test-NvidiaPresent) -and (Test-Path $gpuReq)) { return $gpuReq }
+  if (Test-Path $cpuReq) { return $cpuReq }
+  if (Test-Path $gpuReq) { return $gpuReq }
+  throw "no requirements file found next to setup.ps1"
+}
+
+$req = Select-Requirements $runArgs
+$reqHash = (Get-FileHash -Algorithm SHA256 $req).Hash
 
 function Test-MsvcPy312($exe) {
   if (-not (Test-Path $exe)) { return $false }
@@ -57,11 +87,14 @@ function Find-Py312 {
 }
 
 # --- 1. fast path: a valid venv that can already import the engine ---
+$storedReqHash = if (Test-Path $reqStamp) { (Get-Content $reqStamp -Raw).Trim() } else { '' }
 $venvOk = (Test-MsvcPy312 $venvPy) -and
+          ($storedReqHash -eq $reqHash) -and
           $(& $venvPy -c "import faster_whisper, numpy, sounddevice, pynput" 2>$null; $LASTEXITCODE -eq 0)
 
 if (-not $venvOk) {
   Write-Host "Setting up voice-pi (one-time on this machine)..." -ForegroundColor Cyan
+  Write-Host "Requirements: $([System.IO.Path]::GetFileName($req))" -ForegroundColor Cyan
 
   # --- 2. ensure an official MSVC CPython 3.12 ---
   $py = Find-Py312
@@ -86,6 +119,7 @@ if (-not $venvOk) {
   if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed" }
   & $venvPy -m pip install -r $req
   if ($LASTEXITCODE -ne 0) { throw "dependency install failed (see error above)" }
+  Set-Content -Path $reqStamp -Value $reqHash -Encoding ASCII
   Write-Host "Setup complete." -ForegroundColor Green
 }
 

@@ -190,6 +190,13 @@ Or after first-time setup, launch directly:
 setup.cmd --key ctrl_r --lang da
 ```
 
+On an NVIDIA machine, force CUDA explicitly with:
+
+```powershell
+cd C:\source\whisper-dictate
+.\setup.cmd --key ctrl_r --lang da --device cuda
+```
+
 Hold **Right Ctrl**, speak, release — text appears at the cursor.
 NVIDIA GPU is used automatically if present.
 
@@ -214,7 +221,7 @@ NVIDIA GPU is used automatically if present.
 | `--paste` | inject via clipboard + Ctrl+V on X11/Windows (Wayland always uses direct evdev keycodes) |
 | `--no-type` | print transcription only, don't inject (useful for testing) |
 | `--model NAME` | Whisper model (default `large-v3-turbo`; env `VOICEPI_MODEL`) |
-| `--device D` | `auto`/`cuda`/`cpu` (default `auto`; env `VOICEPI_DEVICE`) |
+| `--device D` | `auto`/`cuda`/`cpu` (default `auto`; env `VOICEPI_DEVICE`; invalid values are rejected) |
 
 ## Languages
 
@@ -265,6 +272,14 @@ excellent, 15–25 dB workable, <15 dB the mic or room is the limit.
 
 Architecture, data flow, Wayland injection details, evdev keycode
 reference, and audio routing: see [TECHNICAL.md](TECHNICAL.md).
+
+## Tests
+
+Run the fast unit tests with:
+
+```bash
+python -m unittest discover -s tests -v
+```
 
 ## Releasing
 
