@@ -276,15 +276,29 @@ reference, and audio routing: see [TECHNICAL.md](TECHNICAL.md).
 
 ## Releasing
 
-Push a version tag — CI builds bundles and publishes the GitHub Release:
+Push a version tag:
 
 ```bash
 git tag v0.2.1 && git push origin v0.2.1
 ```
 
-Then bump `url`/`sha256` in
+This triggers **`release.yml`**: it builds the four zip bundles, publishes
+the GitHub Release, and (when the `HOMEBREW_TAP_TOKEN` repo secret is set)
+auto-bumps `url`/`sha256` in
 [`FactusConsulting/homebrew-tap`](https://github.com/FactusConsulting/homebrew-tap)
 `Formula/whisper-dictate.rb`.
+
+The Windows `.exe` installer is **not** built automatically: a tag-created
+Release runs under `GITHUB_TOKEN`, which by GitHub design cannot trigger
+downstream workflows. After the release publishes, manually run the
+**`windows-installer`** workflow for the tag:
+
+```bash
+gh workflow run windows-installer.yml -f tag=v0.2.1
+```
+
+That builds the versioned installers, uploads them to the Release,
+regenerates the winget manifests, and submits a winget-pkgs PR.
 
 ## License
 

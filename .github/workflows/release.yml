@@ -97,3 +97,31 @@ jobs:
             gh release create "$TAG" $assets --repo "$GITHUB_REPOSITORY" \
               --title "$TAG — download, unzip, run" --notes-file NOTES.md
           fi
+
+      - name: Bump Homebrew tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -e
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "HOMEBREW_TAP_TOKEN not set - skipping Homebrew tap bump."
+            exit 0
+          fi
+          src="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${TAG}.tar.gz"
+          sha=$(curl -fsSL "$src" | sha256sum | cut -d' ' -f1)
+          echo "source tarball sha256: $sha"
+          git clone --depth 1 \
+            "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/FactusConsulting/homebrew-tap.git" tap
+          f=tap/Formula/whisper-dictate.rb
+          sed -i -E "s#(archive/refs/tags/)[^\"]+#\1${TAG}.tar.gz#" "$f"
+          sed -i -E "s#^( *sha256 \")[a-f0-9]{64}#\1${sha}#" "$f"
+          cd tap
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/whisper-dictate.rb
+          if git diff --cached --quiet; then
+            echo "Homebrew formula already up to date."
+            exit 0
+          fi
+          git commit -m "whisper-dictate ${VERSION}"
+          git push origin HEAD:main
