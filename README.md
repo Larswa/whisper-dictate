@@ -252,6 +252,10 @@ keyboard layout so that æøå are injected correctly.
 
 ## Tuning
 
+Every setting — all `VOICEPI_*` env vars **and** CLI flags, their possible
+values, defaults, and how to set them per platform (Windows .exe / Homebrew /
+Nix / CLI): see **[CONFIGURATION.md](CONFIGURATION.md)**. The most common knobs:
+
 | Env var | Default | Effect |
 |---|---|---|
 | `VOICEPI_TARGET_DBFS` | `-20` | lower (e.g. `-16`) = boost quiet speech harder |
