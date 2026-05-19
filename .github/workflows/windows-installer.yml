@@ -92,13 +92,13 @@ jobs:
           $out | ConvertTo-Json | Set-Content sha256sums.json -Encoding utf8
           Get-Content sha256sums.txt
 
-      - name: Upload installers to release
+      - name: Upload installers + checksums to release
         if: steps.win-check.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release upload "$TAG" Output/*.exe --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$TAG" Output/*.exe sha256sums.txt --repo "$GITHUB_REPOSITORY" --clobber
 
       - name: Generate winget manifests
         if: steps.win-check.outputs.changed == 'true'

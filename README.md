@@ -143,6 +143,35 @@ Download the `.exe` installer from
 Double-click the installer. It installs to `%LOCALAPPDATA%\Programs\WhisperDictate`
 (no admin required) and adds the directory to your user PATH.
 
+### Verify the download
+
+Every release publishes **`sha256sums.txt`** (covering all installer
+variants) as a release asset. After downloading, confirm the binary is
+exactly what CI built:
+
+```powershell
+(Get-FileHash .\whisper-dictate-windows-nvidia-setup-<version>.exe -Algorithm SHA256).Hash.ToLower()
+```
+
+Each line of `sha256sums.txt` is `filename=<sha256>`. A match means the
+binary is bit-for-bit the artifact built by the public
+[`windows-installer`](.github/workflows/windows-installer.yml) GitHub Actions
+workflow from this source — it has not been tampered with.
+
+> **Antivirus false positives.** The installer is unsigned and bundles a
+> push-to-talk dictation tool: a global keyboard hook + microphone capture +
+> synthetic keystroke injection. By design that is the same behavioural
+> profile as a keylogger, so Microsoft Defender's machine-learning
+> heuristics (detection names ending in `!ml`, e.g. `Wacatac`, `Sabsik`) may
+> flag it. The installer payload is **only** the text files listed in
+> [`installer/whisper-dictate.iss`](installer/whisper-dictate.iss) — the
+> `.py`/`.ps1`/`.cmd`/`.md` scripts in this repo, no compiled binary. After
+> verifying the SHA256 above you can cross-check on
+> [VirusTotal](https://www.virustotal.com/): a handful of heuristic engines
+> flag it, the large majority report clean. To avoid the heuristic entirely,
+> use the [zip / source install](#install-manually-zip) and run `setup.cmd`
+> — identical software, no installer stub.
+
 ### Install via winget
 
 Once the [pending PR](https://github.com/microsoft/winget-pkgs/pulls?q=is%3Apr+FactusConsulting.WhisperDictate)
