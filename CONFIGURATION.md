@@ -23,6 +23,8 @@ upgrade wipes them.
 | `VOICEPI_LANG` | *(unset → auto-detect)* | ISO 639-1: `da en de fr sv nb nn nl fi pl pt es it uk` … (any Whisper language); empty/unset = auto-detect | Force the spoken language. Strongly recommended for short/soft dictation — auto-detect flip-flops on short utterances. Also `--lang`. |
 | `VOICEPI_BEAM_SIZE` | `1` | integer ≥ 1 (typical `1`–`5`) | Beam-search width. `1` = fastest; `5` = better accuracy, 3–4× slower on CPU (cheap on GPU). Env only — no flag. |
 | `VOICEPI_INITIAL_PROMPT` | *(none)* | free text | Context/vocabulary hint biasing recognition toward your terms/names. Env only. |
+| `VOICEPI_QUIT_COUNT` | `3` | integer ≥ 0 | **Windows/X11 only** (pynput path). N consecutive Esc presses within `VOICEPI_QUIT_WINDOW_MS` quit the app. Default `3` avoids accidental shutdown since pynput catches Esc system-wide. Set `0` to disable global Esc-quit entirely (rely on Ctrl+C in the launcher console); set `1` for legacy single-Esc behaviour. |
+| `VOICEPI_QUIT_WINDOW_MS` | `1500` | integer ms | Time window within which the consecutive Esc presses count toward `VOICEPI_QUIT_COUNT`. Any non-Esc key press resets the counter. |
 | `VOICEPI_TARGET_DBFS` | `-20` | float (dBFS, ≤ 0) | Loudness quiet input is normalised toward. Lower (e.g. `-16`) = boost quiet speech harder. |
 | `VOICEPI_MIN_INPUT_DBFS` | `-55` | float (dBFS) | Reject utterances quieter than this ("input too quiet"). |
 | `VOICEPI_MIN_SNR_DB` | `6` | float (dB) | Reject utterances with SNR below this ("no speech contrast"). |

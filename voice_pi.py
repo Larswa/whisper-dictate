@@ -30,7 +30,8 @@ Hold RIGHT CTRL, speak, release → text appears at your cursor.
 On Wayland (Ubuntu 26.04), text is injected directly via ydotool:
 ASCII via ydotool type, æøå via evdev keycodes (compositor maps them
 through the DK XKB layout — no clipboard, no paste shortcut).
-Stop it by pressing Esc (or Ctrl+C) — that frees the GPU VRAM.
+Stop it by pressing Esc 3 times in a row (or Ctrl+C) — that frees
+the GPU VRAM. Configure with VOICEPI_QUIT_COUNT (0 disables; 1 = legacy).
 """
 from __future__ import annotations
 
@@ -112,6 +113,13 @@ BEAM_SIZE = int(os.environ.get("VOICEPI_BEAM_SIZE", "1"))
 # recognition of domain-specific terms (product names, jargon, names).
 # Example: VOICEPI_INITIAL_PROMPT="Winget, whisper-dictate, FactusConsulting"
 INITIAL_PROMPT = os.environ.get("VOICEPI_INITIAL_PROMPT") or None
+
+# Global quit shortcut for the pynput path (Windows/X11). N consecutive
+# Esc presses within QUIT_WINDOW_MS quit the app. Default 3 — avoids
+# accidental shutdown because pynput catches Esc system-wide. Set
+# VOICEPI_QUIT_COUNT=0 to disable; 1 = legacy single-Esc behaviour.
+QUIT_COUNT = int(os.environ.get("VOICEPI_QUIT_COUNT", "3"))
+QUIT_WINDOW_MS = int(os.environ.get("VOICEPI_QUIT_WINDOW_MS", "1500"))
 
 # Whisper hallucinerer disse sætninger på kort/stille lyd — ignorer dem.
 _HALLUCINATIONS: frozenset[str] = frozenset({
@@ -433,14 +441,27 @@ class Dictate(InjectMixin):
 
         pressed: set = set()
         recording = False
+        esc_count = 0
+        esc_last = 0.0
 
+        quit_hint = f"{QUIT_COUNT}× Esc or Ctrl+C" if QUIT_COUNT > 0 else "Ctrl+C"
         print(f"voice-pi dictation [lang={self.lang or 'auto'}] (pynput). Hold "
-              f"[{self.key}] to talk. Esc or Ctrl+C to quit.", flush=True)
+              f"[{self.key}] to talk. {quit_hint} to quit.", flush=True)
 
         def on_press(k):
-            nonlocal recording
+            nonlocal recording, esc_count, esc_last
             if k == keyboard.Key.esc:
-                return False
+                if QUIT_COUNT > 0:
+                    now = time.monotonic()
+                    if now - esc_last <= QUIT_WINDOW_MS / 1000.0:
+                        esc_count += 1
+                    else:
+                        esc_count = 1
+                    esc_last = now
+                    if esc_count >= QUIT_COUNT:
+                        return False
+                return  # never add Esc to the PTT-key set
+            esc_count = 0  # any other key resets the consecutive-Esc streak
             pressed.add(k)
             if targets.issubset(pressed) and not recording:
                 recording = True
