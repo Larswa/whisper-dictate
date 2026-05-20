@@ -243,6 +243,91 @@ class ComputeTypeOverrideTests(unittest.TestCase):
             voice_pi._resolve_device("cpu"), ("cpu", "int8"))
 
 
+class DebugConfigTests(unittest.TestCase):
+    """VOICEPI_DEBUG triggers a startup dump of every effective setting
+    + the env-var source annotation — so users can verify their setx
+    actually arrived in the running process."""
+
+    def setUp(self):
+        # Cache + clear env we mutate so the dump is deterministic
+        self._cached = {k: os.environ.pop(k, None) for k in (
+            "VOICEPI_COMPUTE_TYPE", "VOICEPI_INITIAL_PROMPT",
+            "VOICEPI_BEAM_SIZE", "VOICEPI_QUIT_COUNT",
+            "VOICEPI_XKB_LAYOUT", "XKB_DEFAULT_LAYOUT",
+            "VOICEPI_LANG", "VOICEPI_MODEL", "VOICEPI_DEVICE",
+        )}
+
+    def tearDown(self):
+        for k, v in self._cached.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
+
+    def _args(self, **over):
+        defaults = dict(key="ctrl_r", model="large-v3", lang="da",
+                        autodetect=False, device="cuda", mode="type")
+        defaults.update(over)
+        return types.SimpleNamespace(**defaults)
+
+    def test_dump_includes_all_expected_sections(self):
+        os.environ["VOICEPI_COMPUTE_TYPE"] = "float16"
+        os.environ["VOICEPI_INITIAL_PROMPT"] = "foo,bar,baz,qux"
+        os.environ["VOICEPI_BEAM_SIZE"] = "8"
+        voice_pi = load_voice_pi(cuda_devices=1)
+        with _capture_stdout() as buf:
+            voice_pi._print_effective_config(self._args(), "cuda", "float16")
+        out = buf.getvalue()
+
+        # header + every row label appears
+        self.assertIn("[debug] effective settings:", out)
+        for label in ("--key", "--model", "--lang", "--device",
+                      "compute_type", "beam_size", "initial_prompt",
+                      "quit", "audio thresholds", "XKB (Wayland)",
+                      "inject mode"):
+            self.assertIn(label, out)
+
+        # env-sourced values are surfaced + annotated with the env var name
+        self.assertIn("VOICEPI_COMPUTE_TYPE=float16", out)
+        self.assertIn("VOICEPI_BEAM_SIZE=8", out)
+        self.assertIn("large-v3", out)
+        self.assertIn("float16", out)
+        # prompt is shown with its length + a preview substring
+        self.assertIn("15 chars", out)
+        self.assertIn("foo,bar,baz,qux", out)
+
+    def test_long_prompt_is_truncated(self):
+        os.environ["VOICEPI_INITIAL_PROMPT"] = "x" * 200
+        voice_pi = load_voice_pi(cuda_devices=1)
+        with _capture_stdout() as buf:
+            voice_pi._print_effective_config(self._args(), "cuda", "float16")
+        out = buf.getvalue()
+        self.assertIn("200 chars", out)
+        self.assertIn("...", out)  # truncated marker
+        # full 200-char string is NOT in the output
+        self.assertNotIn("x" * 200, out)
+
+    def test_unset_env_shows_unset(self):
+        voice_pi = load_voice_pi(cuda_devices=1)
+        with _capture_stdout() as buf:
+            voice_pi._print_effective_config(self._args(), "cuda", "int8_float16"),
+        out = buf.getvalue()
+        self.assertIn("VOICEPI_COMPUTE_TYPE=(unset)", out)
+        self.assertIn("VOICEPI_INITIAL_PROMPT", out)  # row exists
+        self.assertIn("(unset)", out)  # prompt shows (unset) too
+
+    def test_autodetect_flag_overrides_lang_in_display(self):
+        os.environ["VOICEPI_LANG"] = "da"
+        voice_pi = load_voice_pi(cuda_devices=1)
+        with _capture_stdout() as buf:
+            voice_pi._print_effective_config(
+                self._args(lang="da", autodetect=True), "cuda", "float16")
+        out = buf.getvalue()
+        # final resolved lang is 'auto' even though VOICEPI_LANG=da
+        # because --autodetect was passed
+        self.assertRegex(out, r"--lang\s+auto\b")
+        self.assertIn("--autodetect=True", out)
+
+
 class ArgumentParserTests(unittest.TestCase):
     def test_parser_rejects_invalid_device(self):
         voice_pi = load_voice_pi()

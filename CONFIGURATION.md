@@ -14,6 +14,31 @@ across upgrades only if they live **outside** the install dir (env vars, your
 own shortcut) — never edit the installed `setup.*`/`voice_pi.py`, a clean
 upgrade wipes them.
 
+## Cheat sheet — every knob at a glance
+
+| Knob | Env var | CLI flag | Default | Range / options | What it does |
+|---|---|---|---|---|---|
+| **Whisper model** | `VOICEPI_MODEL` | `--model` | `large-v3-turbo` | `large-v3-turbo`, `large-v3`, `medium`, `small`, `base`, `tiny`, `distil-large-v3`, … | turbo = fastest default; `large-v3` = best accuracy |
+| **Device** | `VOICEPI_DEVICE` | `--device` | `auto` | `auto` \| `cuda` \| `cpu` | auto picks NVIDIA GPU if present, else CPU |
+| **Compute type / precision** | `VOICEPI_COMPUTE_TYPE` | _none_ | `int8_float16` (GPU) / `int8` (CPU) | `int8`, `int8_float16`, `float16`, `bfloat16`, `float32` | precision override — `float16` for accuracy on big GPUs; see VRAM table below |
+| **Spoken language** | `VOICEPI_LANG` | `--lang` / `--autodetect` | _(unset → auto-detect)_ | ISO 639-1: `da`, `en`, `de`, `fr`, `sv`, `nb`, `nl`, `fi`, `pl`, `pt`, `es`, `it`, `uk`, … | language hint; strongly recommended for short utterances |
+| **Beam-search width** | `VOICEPI_BEAM_SIZE` | _none_ | `1` | integer ≥ 1 (typical 1-16) | wider = more accurate, slower (cheap on GPU) |
+| **Vocabulary hint** | `VOICEPI_INITIAL_PROMPT` | _none_ | _(unset)_ | free text up to ~1024 chars | bias toward your domain words/names |
+| **Push-to-talk key** | _none_ | `--key` | `ctrl_r` | pynput key name (`ctrl_r`, `alt_r`, `f9`, …) or `a+b` chord | hold-to-talk key |
+| **Inject mode** | _none_ | `--paste` / `--no-type` | direct typing | flag-only | clipboard paste (X11/Win) or print-only (testing) |
+| **Global quit count** | `VOICEPI_QUIT_COUNT` | _none_ | `3` | integer ≥ 0 (`0` disables) | N consecutive Esc to quit (Windows/X11) |
+| **Quit window** | `VOICEPI_QUIT_WINDOW_MS` | _none_ | `1500` | integer ms | time window for the consecutive Esc presses |
+| **Audio loudness target** | `VOICEPI_TARGET_DBFS` | _none_ | `-20` | float dBFS ≤ 0 | target for quiet-boost normalisation |
+| **Audio min input** | `VOICEPI_MIN_INPUT_DBFS` | _none_ | `-55` | float dBFS | reject input quieter than this |
+| **Audio min SNR** | `VOICEPI_MIN_SNR_DB` | _none_ | `6` | float dB | reject input below this speech-vs-noise contrast |
+| **XKB layout (Wayland)** | `VOICEPI_XKB_LAYOUT` (highest), `XKB_DEFAULT_LAYOUT` (fallback) | _none_ | _(auto-detect)_ | `dk`, `se`, `de`, `fi`, `no`, `es`, `pt`, `br`, `pl`, `ua`, … | force keycode layout for special-char injection |
+| **Skip syscheck** | `VOICEPI_SKIP_SYSCHECK` | _none_ | _(unset)_ | any non-empty | skip `setup.sh` apt-dep check (auto-set by brew/nix) |
+| **Debug dump** | `VOICEPI_DEBUG` | _none_ | _(unset)_ | `1` / `true` / any truthy | log every effective setting at startup |
+
+The detailed tables below are the same knobs split by surface (env vars
+vs flags) with the longer prose. Most users only need the cheat sheet +
+the **GPU VRAM sizing** table further down.
+
 ## Environment variables
 
 | Variable | Default | Values | Effect |
@@ -32,9 +57,41 @@ upgrade wipes them.
 | `VOICEPI_XKB_LAYOUT` | *(unset)* | XKB layout name: `dk se de fi no es pt br pl ua` … | **Wayland only.** Force the keycode layout for special-char injection, overriding auto-detection (highest priority). |
 | `XKB_DEFAULT_LAYOUT` | *(unset)* | XKB layout name | **Wayland only.** Also consulted (2nd priority, after `VOICEPI_XKB_LAYOUT`). `--lang` auto-sets it if unset. |
 | `VOICEPI_SKIP_SYSCHECK` | *(unset)* | any non-empty value | Linux: skip the `setup.sh` apt dependency check. Set automatically by the Homebrew/Nix wrappers; rarely set by hand. |
+| `VOICEPI_DEBUG` | *(unset)* | `1` / `true` / any truthy (empty, `0`, `false`, `no`, `off` = disabled) | At startup, prints a `[debug] effective settings:` block listing every setting + which env var supplied it. Useful for "is my `setx` actually arriving in the running process?" — run with `VOICEPI_DEBUG=1` and the first lines of the log show the truth. Zero runtime cost when unset. |
 
 See [MICROPHONE.md](MICROPHONE.md) for what the capture-tuning dBFS/SNR
 numbers mean in practice.
+
+### Debugging "is my `setx` arriving?" — `VOICEPI_DEBUG=1`
+
+A common confusion on Windows is that `setx` writes to the user registry,
+but **only new processes inherit it** — a whisper-dictate launched from a
+stale Start-menu shortcut or tray-restart may still see the old values.
+
+To verify what the running process actually sees, set `VOICEPI_DEBUG=1`
+and restart. The first lines of the log will print every effective
+setting + the env var that supplied it:
+
+```
+[debug] effective settings:
+  --key              ctrl_r
+  --model            large-v3  (env VOICEPI_MODEL=large-v3)
+  --lang             da  (env VOICEPI_LANG=da, --autodetect=False)
+  --device           cuda  ->  resolved: cuda / float16
+  compute_type       float16  (env VOICEPI_COMPUTE_TYPE=float16)
+  beam_size          8  (env VOICEPI_BEAM_SIZE=8)
+  initial_prompt     899 chars: "Factus Consulting, TwoDay, Hetzner, konsulent..."  (env VOICEPI_INITIAL_PROMPT)
+  quit               3x Esc within 1500ms  (env VOICEPI_QUIT_COUNT=3)
+  audio thresholds   target_dbfs=-20.0  min_input_dbfs=-55.0  min_snr_db=6.0
+  XKB (Wayland)      VOICEPI_XKB_LAYOUT=(unset)  XKB_DEFAULT_LAYOUT=da
+  inject mode        type
+loading Whisper large-v3 on cuda (float16)…
+```
+
+If a value shows `(unset)` where you expected one, your `setx` didn't
+reach this process — log out + back in, or launch from a fresh PowerShell
+where `$env:VOICEPI_X` shows the value. Leave `VOICEPI_DEBUG` unset for
+normal use; the dump adds ~10 lines on startup and zero runtime cost.
 
 ## CLI flags
 

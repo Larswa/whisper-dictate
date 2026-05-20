@@ -150,6 +150,49 @@ _HALLUCINATIONS: frozenset[str] = frozenset({
 })
 
 
+def _print_effective_config(args, dev: str, ctype: str) -> None:
+    """Dump every setting whisper-dictate honours + the env-var source
+    annotation. Triggered by VOICEPI_DEBUG. Useful for "is my setx
+    actually arriving?" debugging — print is unconditional and runs
+    BEFORE the model loads, so it shows even if the model load hangs."""
+    def _env(name: str) -> str:
+        v = os.environ.get(name)
+        if v is None:
+            return "(unset)"
+        return v if len(v) <= 60 else f"{v[:57]}..."
+
+    prompt_raw = os.environ.get("VOICEPI_INITIAL_PROMPT") or ""
+    if prompt_raw:
+        prompt_body = (f"{len(prompt_raw)} chars: \"{prompt_raw[:60]}"
+                       f"{'...' if len(prompt_raw) > 60 else ''}\"")
+    else:
+        prompt_body = "(unset)"
+    prompt_preview = f"{prompt_body}  (env VOICEPI_INITIAL_PROMPT)"
+
+    rows = [
+        ("--key",            args.key),
+        ("--model",          f"{args.model}  (env VOICEPI_MODEL={_env('VOICEPI_MODEL')})"),
+        ("--lang",           f"{(None if (args.autodetect or not args.lang) else args.lang) or 'auto'}  "
+                             f"(env VOICEPI_LANG={_env('VOICEPI_LANG')}, "
+                             f"--autodetect={args.autodetect})"),
+        ("--device",         f"{args.device}  ->  resolved: {dev} / {ctype}"),
+        ("compute_type",     f"{ctype}  (env VOICEPI_COMPUTE_TYPE={_env('VOICEPI_COMPUTE_TYPE')})"),
+        ("beam_size",        f"{BEAM_SIZE}  (env VOICEPI_BEAM_SIZE={_env('VOICEPI_BEAM_SIZE')})"),
+        ("initial_prompt",   prompt_preview),
+        ("quit",             f"{QUIT_COUNT}x Esc within {QUIT_WINDOW_MS}ms  "
+                             f"(env VOICEPI_QUIT_COUNT={_env('VOICEPI_QUIT_COUNT')})"),
+        ("audio thresholds", f"target_dbfs={TARGET_DBFS}  "
+                             f"min_input_dbfs={MIN_INPUT_DBFS}  "
+                             f"min_snr_db={MIN_INPUT_SNR_DB}"),
+        ("XKB (Wayland)",    f"VOICEPI_XKB_LAYOUT={_env('VOICEPI_XKB_LAYOUT')}  "
+                             f"XKB_DEFAULT_LAYOUT={_env('XKB_DEFAULT_LAYOUT')}"),
+        ("inject mode",      args.mode),
+    ]
+    print("[debug] effective settings:", flush=True)
+    for k, v in rows:
+        print(f"  {k:<18} {v}", flush=True)
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
     ap.add_argument("--key", default="ctrl_r",
@@ -503,6 +546,10 @@ if __name__ == "__main__":
         dev, ctype = _resolve_device(a.device)
     except ValueError as e:
         ap.error(str(e))
+
+    if (os.environ.get("VOICEPI_DEBUG") or "").strip().lower() not in (
+            "", "0", "false", "no", "off"):
+        _print_effective_config(a, dev, ctype)
 
     print(f"loading Whisper {a.model} on {dev} ({ctype})… "
           f"first run downloads the model", flush=True)
