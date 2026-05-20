@@ -65,6 +65,25 @@ if os.name == "nt":
     except Exception as e:  # noqa: BLE001 — never block startup on this
         print(f"[warn] CUDA DLL bootstrap skipped: {e}", flush=True)
 
+# --- Quiet huggingface_hub first-download noise -------------------------
+# faster-whisper fetches the model via huggingface_hub on first run. On
+# Windows without Developer Mode the cache prints a long symlinks warning,
+# and recent HF versions emit an "unauthenticated requests" nag for
+# anonymous downloads. Neither is actionable for a public model fetch —
+# they just look like errors to new users. Suppress at multiple layers
+# (env gates, Python warnings, HF logger level) to cover both emission
+# paths across HF versions. Must run BEFORE any HF code imports.
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+os.environ.setdefault("HF_HUB_VERBOSITY", "error")
+import logging  # noqa: E402
+import warnings  # noqa: E402
+warnings.filterwarnings("ignore", module=r"huggingface_hub.*")
+try:
+    import huggingface_hub  # noqa: E402, F401 — registers the logger
+    logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+except Exception:  # noqa: BLE001 — never block startup on this
+    pass
+
 from faster_whisper import WhisperModel  # noqa: E402 — must follow bootstrap
 
 SR = 16000
