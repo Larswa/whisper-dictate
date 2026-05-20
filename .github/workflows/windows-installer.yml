@@ -189,17 +189,3 @@ jobs:
           git diff --cached --quiet && echo "no manifest changes" && exit 0
           git commit -m "chore: update winget manifests for $TAG"
           git push origin main
-
-      - name: Submit PR to microsoft/winget-pkgs
-        if: steps.win-check.outputs.changed == 'true'
-        env:
-          WINGET_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN }}
-        shell: pwsh
-        run: |
-          $version = "${{ env.TAG }}" -replace '^v',''
-          winget install --id Microsoft.WingetCreate --source winget `
-            --accept-package-agreements --accept-source-agreements --silent
-          wingetcreate submit `
-            --token $env:WINGET_TOKEN `
-            --prtitle "New version: FactusConsulting.WhisperDictate $version" `
-            .\manifests\

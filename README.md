@@ -341,8 +341,9 @@ downstream workflows. After the release publishes, manually run the
 gh workflow run windows-installer.yml -f tag=v0.2.1
 ```
 
-That builds the versioned installers, uploads them to the Release,
-regenerates the winget manifests, and submits a winget-pkgs PR.
+That builds the versioned installers, uploads them to the Release, and
+regenerates the local winget manifests in this repo (used for the
+`winget install --manifest` install path).
 
 ## Wayland keyboard-layout testing status
 
