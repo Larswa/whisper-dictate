@@ -64,6 +64,36 @@ the **GPU VRAM sizing** table further down.
 See [MICROPHONE.md](MICROPHONE.md) for what the capture-tuning dBFS/SNR
 numbers mean in practice.
 
+### Probing a hotkey before you commit — `scripts/probe-key.py`
+
+Before `setx VOICEPI_KEY <something>`, verify your OS actually delivers
+that key to pynput. The repo ships a 100-line standalone probe:
+
+```powershell
+# Clone or cd into the repo, then:
+python scripts/probe-key.py pause          # active: confirm Pause arrives
+python scripts/probe-key.py ctrl_r+space   # active: confirm a chord
+python scripts/probe-key.py                # passive: log EVERY key event
+python scripts/probe-key.py f9 30          # custom 30-second window
+```
+
+Common gotchas the probe catches:
+
+- **Pause/Break missing on tenkeyless / laptop keyboards** — no physical
+  Pause key, nothing to trigger.
+- **Pause intercepted by gaming-keyboard firmware** (Razer/Corsair) —
+  swallowed before pynput sees it.
+- **`caps_lock` state-toggle on Windows** — press fires once, release
+  doesn't fire on hold; breaks the hold-to-talk model.
+- **Multimedia keys eaten by OEM software** before reaching pynput.
+- **Chord like `ctrl_r+space` filtered by IME / IntelliSense** in some
+  apps.
+
+Exit codes: `0` = chord verified, `1` = no events at all (OS not
+delivering), `2` = events arrived but the full chord was never held
+together, `3` = unknown key name. The script needs no install beyond
+pynput (which whisper-dictate already depends on).
+
 ### Debugging "is my `setx` arriving?" — `VOICEPI_DEBUG=1`
 
 A common confusion on Windows is that `setx` writes to the user registry,
