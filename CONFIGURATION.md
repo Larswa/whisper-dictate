@@ -24,8 +24,8 @@ upgrade wipes them.
 | **Spoken language** | `VOICEPI_LANG` | `--lang` / `--autodetect` | _(unset → auto-detect)_ | ISO 639-1: `da`, `en`, `de`, `fr`, `sv`, `nb`, `nl`, `fi`, `pl`, `pt`, `es`, `it`, `uk`, … | language hint; strongly recommended for short utterances |
 | **Beam-search width** | `VOICEPI_BEAM_SIZE` | _none_ | `1` | integer ≥ 1 (typical 1-16) | wider = more accurate, slower (cheap on GPU) |
 | **Vocabulary hint** | `VOICEPI_INITIAL_PROMPT` | _none_ | _(unset)_ | free text up to ~1024 chars | bias toward your domain words/names |
-| **Push-to-talk key** | _none_ | `--key` | `ctrl_r` | pynput key name (`ctrl_r`, `alt_r`, `f9`, …) or `a+b` chord | hold-to-talk key |
-| **Inject mode** | _none_ | `--paste` / `--no-type` | direct typing | flag-only | clipboard paste (X11/Win) or print-only (testing) |
+| **Push-to-talk key** | `VOICEPI_KEY` | `--key` | `ctrl_r` | pynput key name (`ctrl_r`, `alt_r`, `f9`, …) or `a+b` chord | hold-to-talk key |
+| **Inject mode** | `VOICEPI_INJECT_MODE` | `--paste` / `--no-type` | `type` | `type` \| `paste` \| `print` | direct typing, clipboard paste (X11/Win), or print-only (testing) |
 | **Global quit count** | `VOICEPI_QUIT_COUNT` | _none_ | `3` | integer ≥ 0 (`0` disables) | N consecutive Esc to quit (Windows/X11) |
 | **Quit window** | `VOICEPI_QUIT_WINDOW_MS` | _none_ | `1500` | integer ms | time window for the consecutive Esc presses |
 | **Audio loudness target** | `VOICEPI_TARGET_DBFS` | _none_ | `-20` | float dBFS ≤ 0 | target for quiet-boost normalisation |
@@ -47,8 +47,10 @@ the **GPU VRAM sizing** table further down.
 | `VOICEPI_DEVICE` | `auto` | `auto` \| `cuda` \| `cpu` | Compute device. `auto` = NVIDIA GPU if present, else CPU. Invalid value → error. Also `--device`. |
 | `VOICEPI_COMPUTE_TYPE` | *(unset → `int8_float16` on GPU, `int8` on CPU)* | `int8` \| `int8_float16` \| `float16` \| `bfloat16` \| `float32` … (any ctranslate2-supported type) | Overrides the auto-picked compute precision. Big-GPU users gain accuracy with `float16` (or `bfloat16` on Ampere/Ada+); `int8_float16` defaults trade a little accuracy for VRAM/speed. Validated by ctranslate2 at model-load — an unsupported value raises then. Env only — no flag. |
 | `VOICEPI_LANG` | *(unset → auto-detect)* | ISO 639-1: `da en de fr sv nb nn nl fi pl pt es it uk` … (any Whisper language); empty/unset = auto-detect | Force the spoken language. Strongly recommended for short/soft dictation — auto-detect flip-flops on short utterances. Also `--lang`. |
+| `VOICEPI_KEY` | `ctrl_r` | pynput key name, or chord `a+b` | Hold-to-talk key. e.g. `ctrl_r`, `alt_r`, `shift_r`, `f9`, or `shift_r+ctrl_r` (hold both). Also `--key`. |
 | `VOICEPI_BEAM_SIZE` | `1` | integer ≥ 1 (typical `1`–`5`) | Beam-search width. `1` = fastest; `5` = better accuracy, 3–4× slower on CPU (cheap on GPU). Env only — no flag. |
 | `VOICEPI_INITIAL_PROMPT` | *(none)* | free text | Context/vocabulary hint biasing recognition toward your terms/names. Env only. |
+| `VOICEPI_INJECT_MODE` | `type` | `type` \| `paste` \| `print` | Controls text output injection. `type` sends direct keystrokes, `paste` copies the text to the clipboard and sends paste on X11/Windows, and `print` only writes the transcription to stdout. `--paste`/`--no-type` override this env var. |
 | `VOICEPI_QUIT_COUNT` | `3` | integer ≥ 0 | **Windows/X11 only** (pynput path). N consecutive Esc presses within `VOICEPI_QUIT_WINDOW_MS` quit the app. Default `3` avoids accidental shutdown since pynput catches Esc system-wide. Set `0` to disable global Esc-quit entirely (rely on Ctrl+C in the launcher console); set `1` for legacy single-Esc behaviour. |
 | `VOICEPI_QUIT_WINDOW_MS` | `1500` | integer ms | Time window within which the consecutive Esc presses count toward `VOICEPI_QUIT_COUNT`. Any non-Esc key press resets the counter. |
 | `VOICEPI_TARGET_DBFS` | `-20` | float (dBFS, ≤ 0) | Loudness quiet input is normalised toward. Lower (e.g. `-16`) = boost quiet speech harder. |
@@ -84,7 +86,7 @@ setting + the env var that supplied it:
   quit               3x Esc within 1500ms  (env VOICEPI_QUIT_COUNT=3)
   audio thresholds   target_dbfs=-20.0  min_input_dbfs=-55.0  min_snr_db=6.0
   XKB (Wayland)      VOICEPI_XKB_LAYOUT=(unset)  XKB_DEFAULT_LAYOUT=da
-  inject mode        type
+  inject mode        type  (env VOICEPI_INJECT_MODE=(unset))
 loading Whisper large-v3 on cuda (float16)…
 ```
 
@@ -99,13 +101,13 @@ Passed after the launcher (`setup.cmd` / `setup.sh` / `whisper-dictate`):
 
 | Flag | Default | Values | Effect |
 |---|---|---|---|
-| `--key` | `ctrl_r` | pynput key name, or chord `a+b` | Hold-to-talk key. e.g. `ctrl_r`, `alt_r`, `shift_r`, `f9`, or `shift_r+ctrl_r` (hold both). |
+| `--key` | `$VOICEPI_KEY` or `ctrl_r` | pynput key name, or chord `a+b` | Hold-to-talk key. e.g. `ctrl_r`, `alt_r`, `shift_r`, `f9`, or `shift_r+ctrl_r` (hold both). |
 | `--model NAME` | `$VOICEPI_MODEL` | see `VOICEPI_MODEL` | Whisper model for this run. |
 | `--lang CODE` | `$VOICEPI_LANG` | ISO 639-1 code | Force language for this run. Omit to auto-detect. |
 | `--autodetect` | off | — | Force language auto-detect (overrides `--lang`/`VOICEPI_LANG`). |
 | `--device D` | `$VOICEPI_DEVICE` | `auto` \| `cuda` \| `cpu` | Compute device for this run. |
-| `--paste` | off | — | X11/Windows: inject via clipboard + Ctrl+V. (Wayland always uses direct evdev keycodes regardless.) |
-| `--no-type` | off | — | Print the transcription only, don't inject (testing). |
+| `--paste` | `$VOICEPI_INJECT_MODE` or off | — | X11/Windows: inject via clipboard + Ctrl+V. (Wayland always uses direct evdev keycodes regardless.) |
+| `--no-type` | `$VOICEPI_INJECT_MODE` or off | — | Print the transcription only, don't inject (testing). |
 
 ## How to set them, per environment
 
@@ -121,6 +123,8 @@ setx VOICEPI_BEAM_SIZE 5
 setx VOICEPI_INITIAL_PROMPT "rødgrød med fløde, FactusConsulting, whisper-dictate"
 setx VOICEPI_MODEL large-v3
 setx VOICEPI_DEVICE cuda
+setx VOICEPI_KEY "ctrl_l+space"
+setx VOICEPI_INJECT_MODE paste
 # then restart whisper-dictate (new process picks them up)
 ```
 

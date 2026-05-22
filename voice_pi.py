@@ -15,7 +15,8 @@ First run downloads the model into the Hugging Face cache (turbo
 ~1.5 GB; large-v3 ~3 GB).
 
 Hold RIGHT CTRL, speak, release → text appears at your cursor.
-  --key f9        use a different hold-to-talk key (ctrl_r, alt_r, f9…)
+  --key f9        use a different hold-to-talk key (ctrl_r, alt_r, f9…;
+                  env VOICEPI_KEY)
   --key a+b       chord: hold BOTH keys simultaneously (e.g. shift_r+ctrl_r)
   --paste         inject via clipboard + Ctrl+V on X11/Windows
                   (on Wayland direct evdev keycodes are always used instead)
@@ -105,6 +106,16 @@ from vp_audio import (  # noqa: E402 - sits next to this script
 # utterances (and avoids da+English mixing flip-flop). "da", "en",
 # "de", "fr", … ; --autodetect sets this to None (Whisper guesses).
 LANG = os.environ.get("VOICEPI_LANG")  # None → Whisper auto-detects
+
+# Push-to-talk key/chord. CLI --key overrides this env default.
+KEY = os.environ.get("VOICEPI_KEY", "ctrl_r")
+
+# Injection mode. "type" = direct key typing, "paste" = clipboard + paste
+# shortcut on X11/Windows, "print" = stdout only for testing.
+VALID_INJECT_MODES = ("type", "paste", "print")
+INJECT_MODE = (os.environ.get("VOICEPI_INJECT_MODE") or "type").strip().lower()
+if INJECT_MODE not in VALID_INJECT_MODES:
+    INJECT_MODE = "type"
 # beam_size=1 is fastest on CPU; raise to 5 for better accuracy at the
 # cost of 3-4× slower transcription. VOICEPI_BEAM_SIZE=5 is useful on
 # machines without GPU where accuracy matters more than latency.
@@ -170,7 +181,7 @@ def _print_effective_config(args, dev: str, ctype: str) -> None:
     prompt_preview = f"{prompt_body}  (env VOICEPI_INITIAL_PROMPT)"
 
     rows = [
-        ("--key",            args.key),
+        ("--key",            f"{args.key}  (env VOICEPI_KEY={_env('VOICEPI_KEY')})"),
         ("--model",          f"{args.model}  (env VOICEPI_MODEL={_env('VOICEPI_MODEL')})"),
         ("--lang",           f"{(None if (args.autodetect or not args.lang) else args.lang) or 'auto'}  "
                              f"(env VOICEPI_LANG={_env('VOICEPI_LANG')}, "
@@ -186,7 +197,7 @@ def _print_effective_config(args, dev: str, ctype: str) -> None:
                              f"min_snr_db={MIN_INPUT_SNR_DB}"),
         ("XKB (Wayland)",    f"VOICEPI_XKB_LAYOUT={_env('VOICEPI_XKB_LAYOUT')}  "
                              f"XKB_DEFAULT_LAYOUT={_env('XKB_DEFAULT_LAYOUT')}"),
-        ("inject mode",      args.mode),
+        ("inject mode",      f"{args.mode}  (env VOICEPI_INJECT_MODE={_env('VOICEPI_INJECT_MODE')})"),
     ]
     print("[debug] effective settings:", flush=True)
     for k, v in rows:
@@ -195,9 +206,9 @@ def _print_effective_config(args, dev: str, ctype: str) -> None:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--key", default="ctrl_r",
+    ap.add_argument("--key", default=KEY,
                     help="pynput Key name held to talk (ctrl_r, alt_r, f9…) "
-                         "or chord: shift_r+ctrl_r")
+                         "or chord: shift_r+ctrl_r; env VOICEPI_KEY")
     ap.add_argument("--model", default=MODEL_NAME,
                     help="Whisper model (default large-v3-turbo, fastest; "
                          "env VOICEPI_MODEL)")
@@ -216,7 +227,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--device", default=DEVICE, choices=VALID_DEVICES,
                     help="auto|cuda|cpu (default auto; env VOICEPI_DEVICE). "
                          "auto = NVIDIA GPU if present, else CPU")
-    ap.set_defaults(mode="type")
+    ap.set_defaults(mode=INJECT_MODE)
     return ap
 
 

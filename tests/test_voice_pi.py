@@ -255,6 +255,7 @@ class DebugConfigTests(unittest.TestCase):
             "VOICEPI_BEAM_SIZE", "VOICEPI_QUIT_COUNT",
             "VOICEPI_XKB_LAYOUT", "XKB_DEFAULT_LAYOUT",
             "VOICEPI_LANG", "VOICEPI_MODEL", "VOICEPI_DEVICE",
+            "VOICEPI_KEY", "VOICEPI_INJECT_MODE",
         )}
 
     def tearDown(self):
@@ -289,6 +290,8 @@ class DebugConfigTests(unittest.TestCase):
         # env-sourced values are surfaced + annotated with the env var name
         self.assertIn("VOICEPI_COMPUTE_TYPE=float16", out)
         self.assertIn("VOICEPI_BEAM_SIZE=8", out)
+        self.assertIn("VOICEPI_KEY=(unset)", out)
+        self.assertIn("VOICEPI_INJECT_MODE=(unset)", out)
         self.assertIn("large-v3", out)
         self.assertIn("float16", out)
         # prompt is shown with its length + a preview substring
@@ -347,6 +350,23 @@ class ArgumentParserTests(unittest.TestCase):
                     parser.parse_args(["--device", device]).device,
                     device,
                 )
+
+    def test_parser_uses_key_env_default(self):
+        with _env(VOICEPI_KEY="ctrl_l+space"):
+            voice_pi = load_voice_pi()
+            parser = voice_pi.build_arg_parser()
+
+            self.assertEqual(parser.parse_args([]).key, "ctrl_l+space")
+            self.assertEqual(parser.parse_args(["--key", "f9"]).key, "f9")
+
+    def test_parser_uses_inject_mode_env_default(self):
+        with _env(VOICEPI_INJECT_MODE="paste"):
+            voice_pi = load_voice_pi()
+            parser = voice_pi.build_arg_parser()
+
+            self.assertEqual(parser.parse_args([]).mode, "paste")
+            self.assertEqual(parser.parse_args(["--no-type"]).mode, "print")
+            self.assertEqual(parser.parse_args(["--paste"]).mode, "paste")
 
 
 @contextmanager
