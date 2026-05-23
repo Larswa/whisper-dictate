@@ -11,6 +11,16 @@ release because `release.yml` bumps in-place after the tag is pushed.
 
 ## [Unreleased]
 
+## [0.2.39] - 2026-05-23
+
+### Added
+- `VOICEPI_TYPE_INTERVAL_MS` env-var (default `5` ms): per-key delay when injecting via pynput's `Controller.type()`. pynput's default is 0 (max speed, ~1000+ keys/sec), which Windows Terminal / ConPTY-based shells cannot absorb — they drop individual keystrokes, typically the SPACE between words, producing concatenations like "harjegbundetden" in the injected text even though `[stt]` and `[inject]` logs show the correct Whisper output. 5 ms (~200 keys/sec) is fast enough to feel instant but slow enough that the terminal lands every event. Set `0` for the legacy fast path.
+- 7 new unit tests covering `_type_interval_seconds` env parsing and `_type_slow` per-character iteration.
+
+### Changed
+- `vp_inject._inject` now calls `_type_slow(self._kb, text, TYPE_INTERVAL)` instead of `self._kb.type(text)` on the X11/Windows/macOS path and the Wayland ydotool fallback.
+- Debug dump (`VOICEPI_DEBUG=1`) shows the effective `type interval`.
+
 ## [0.2.38] - 2026-05-23
 
 ### Fixed

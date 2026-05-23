@@ -28,6 +28,7 @@ upgrade wipes them.
 | **Vocabulary hint** | `VOICEPI_INITIAL_PROMPT` | _none_ | _(unset)_ | free text up to ~1024 chars | bias toward your domain words/names |
 | **Push-to-talk key** | `VOICEPI_KEY` | `--key` | `ctrl_r` | pynput key name (`ctrl_r`, `alt_r`, `f9`, …) or `a+b` chord | hold-to-talk key |
 | **Inject mode** | `VOICEPI_INJECT_MODE` | `--paste` / `--no-type` | `type` | `type` \| `paste` \| `print` | direct typing, clipboard paste (X11/Win), or print-only (testing) |
+| **Type interval (ms)** | `VOICEPI_TYPE_INTERVAL_MS` | _none_ | `5` | float ≥ 0 (`0` = legacy max speed) | per-key delay in `type` mode. Prevents terminals (Windows Terminal, ConPTY) from dropping individual spaces under pynput's default max-speed injection. Defaults to 5 ms (~200 keys/sec) which is fast enough to feel instant. |
 | **Global quit count** | `VOICEPI_QUIT_COUNT` | _none_ | `3` | integer ≥ 0 (`0` disables) | N consecutive Esc to quit (Windows/X11) |
 | **Quit window** | `VOICEPI_QUIT_WINDOW_MS` | _none_ | `1500` | integer ms | time window for the consecutive Esc presses |
 | **Audio loudness target** | `VOICEPI_TARGET_DBFS` | _none_ | `-20` | float dBFS ≤ 0 | target for quiet-boost normalisation |

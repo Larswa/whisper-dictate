@@ -97,6 +97,7 @@ def _print_effective_config(args, dev: str, ctype: str) -> None:
         ("XKB (Wayland)",    f"VOICEPI_XKB_LAYOUT={_env('VOICEPI_XKB_LAYOUT')}  "
                              f"XKB_DEFAULT_LAYOUT={_env('XKB_DEFAULT_LAYOUT')}"),
         ("inject mode",      f"{args.mode}  (env VOICEPI_INJECT_MODE={_env('VOICEPI_INJECT_MODE')})"),
+        ("type interval",    f"{_env('VOICEPI_TYPE_INTERVAL_MS') if os.environ.get('VOICEPI_TYPE_INTERVAL_MS') is not None else '5'} ms  (env VOICEPI_TYPE_INTERVAL_MS={_env('VOICEPI_TYPE_INTERVAL_MS')})"),
     ]
     print("[debug] effective settings:", flush=True)
     for k, v in rows:

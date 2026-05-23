@@ -5,6 +5,7 @@ import io
 import os
 import sys
 import tempfile
+import time
 import types
 import unittest
 from contextlib import redirect_stderr, contextmanager
@@ -715,6 +716,83 @@ class TemperatureParseTests(unittest.TestCase):
                          [0.0, 0.2])
         self.assertEqual(self.t._parse_temperatures("0.0,abc"),
                          [0.0, 0.2])
+
+
+class TypeIntervalTests(unittest.TestCase):
+    """VOICEPI_TYPE_INTERVAL_MS controls the per-key delay in pynput's
+    Controller.type() loop. 0 = legacy fast path (single .type(text)
+    call), >0 = per-character with sleep."""
+
+    def _set_env(self, val):
+        if val is None:
+            os.environ.pop("VOICEPI_TYPE_INTERVAL_MS", None)
+        else:
+            os.environ["VOICEPI_TYPE_INTERVAL_MS"] = val
+
+    def setUp(self):
+        self._old = os.environ.pop("VOICEPI_TYPE_INTERVAL_MS", None)
+
+    def tearDown(self):
+        os.environ.pop("VOICEPI_TYPE_INTERVAL_MS", None)
+        if self._old is not None:
+            os.environ["VOICEPI_TYPE_INTERVAL_MS"] = self._old
+
+    def _reload(self):
+        # Need a clean import so the module-level _type_interval_seconds()
+        # re-runs against the env we just set.
+        for n in ("vp_inject", "vp_keymap"):
+            sys.modules.pop(n, None)
+        sys.modules.setdefault("pynput", types.ModuleType("pynput"))
+        sys.modules.setdefault("pynput.keyboard", types.ModuleType("pynput.keyboard"))
+        sys.modules["pynput"].keyboard = sys.modules["pynput.keyboard"]
+        import vp_inject
+        return vp_inject
+
+    def test_default_is_five_ms(self):
+        self._set_env(None)
+        m = self._reload()
+        self.assertAlmostEqual(m.TYPE_INTERVAL, 0.005, places=6)
+
+    def test_zero_disables_per_key_loop(self):
+        self._set_env("0")
+        m = self._reload()
+        self.assertEqual(m.TYPE_INTERVAL, 0.0)
+
+    def test_custom_interval(self):
+        self._set_env("12")
+        m = self._reload()
+        self.assertAlmostEqual(m.TYPE_INTERVAL, 0.012, places=6)
+
+    def test_invalid_value_falls_back_to_default(self):
+        self._set_env("not-a-number")
+        m = self._reload()
+        self.assertAlmostEqual(m.TYPE_INTERVAL, 0.005, places=6)
+
+    def test_negative_clamped_to_zero(self):
+        self._set_env("-3")
+        m = self._reload()
+        self.assertEqual(m.TYPE_INTERVAL, 0.0)
+
+    def test_type_slow_skips_loop_at_zero(self):
+        m = self._reload()
+        calls = []
+        controller = types.SimpleNamespace(type=lambda s: calls.append(s))
+        m._type_slow(controller, "abc", 0.0)
+        self.assertEqual(calls, ["abc"])  # one batched call
+
+    def test_type_slow_iterates_per_char_when_positive(self):
+        m = self._reload()
+        calls = []
+        sleeps = []
+        controller = types.SimpleNamespace(type=lambda s: calls.append(s))
+        real_sleep = time.sleep
+        time.sleep = lambda s: sleeps.append(s)
+        try:
+            m._type_slow(controller, "hi!", 0.01)
+        finally:
+            time.sleep = real_sleep
+        self.assertEqual(calls, ["h", "i", "!"])
+        self.assertEqual(sleeps, [0.01, 0.01, 0.01])
 
 
 class ContextMinSecondsTests(unittest.TestCase):

@@ -15,6 +15,36 @@ from pynput import keyboard
 from vp_keymap import _build_ydotool_ops
 
 
+def _type_interval_seconds() -> float:
+    # VOICEPI_TYPE_INTERVAL_MS: per-key delay in milliseconds when injecting
+    # with pynput's Controller.type(). pynput's default is 0 (no delay,
+    # ~1000+ keys/sec) which can drop individual keystrokes (typically
+    # spaces) on terminals whose input buffer cannot absorb that rate —
+    # observed reliably on Windows Terminal / ConPTY-based shells with
+    # any pynput 1.8.x release. Default 5 ms (~200 keys/sec) is fast
+    # enough to feel instant for humans but slow enough that terminals
+    # land every event. Set "0" for the legacy max-speed behaviour.
+    try:
+        return max(0.0, float(os.environ.get("VOICEPI_TYPE_INTERVAL_MS", "5"))) / 1000.0
+    except ValueError:
+        return 0.005
+
+
+TYPE_INTERVAL = _type_interval_seconds()
+
+
+def _type_slow(controller, text: str, interval: float) -> None:
+    # Inject `text` one character at a time with `interval` seconds between
+    # keypresses. interval == 0 falls back to controller.type() which is
+    # pynput's batched fast path.
+    if interval <= 0:
+        controller.type(text)
+        return
+    for ch in text:
+        controller.type(ch)
+        time.sleep(interval)
+
+
 class InjectMixin:
     def _capture_target_window(self):
         # Capture the active window at the moment PTT is pressed.
@@ -168,7 +198,7 @@ class InjectMixin:
             print(f"[inject] ydotool (direkte)", flush=True)
             if not self._wayland_type(text):
                 print("[inject] ydotool fejlede — fallback pynput", flush=True)
-                self._kb.type(text)
+                _type_slow(self._kb, text, TYPE_INTERVAL)
             return
 
         # X11 / Windows / macOS: paste via clipboard or type per --paste flag.
@@ -180,4 +210,4 @@ class InjectMixin:
             self._kb.release("v")
             self._kb.release(keyboard.Key.ctrl)
             return
-        self._kb.type(text)
+        _type_slow(self._kb, text, TYPE_INTERVAL)
