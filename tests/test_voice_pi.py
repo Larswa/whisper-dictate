@@ -611,7 +611,8 @@ class ModuleSurfaceTests(unittest.TestCase):
     def test_voice_pi_reexports_transcribe_symbols(self):
         vp = load_voice_pi()
         for name in ("_transcribe", "_HALLUCINATIONS",
-                     "is_hallucination", "SR", "INITIAL_PROMPT"):
+                     "is_hallucination", "SR", "INITIAL_PROMPT",
+                     "TEMPERATURES", "CONTEXT_MIN_SECONDS"):
             self.assertTrue(hasattr(vp, name),
                             f"voice_pi.{name} missing — re-export broken")
 
@@ -679,6 +680,62 @@ class CliModuleIsolationTests(unittest.TestCase):
         newly_loaded = set(sys.modules) - before
         self.assertNotIn("voice_pi", newly_loaded,
                          "vp_cli must not pull in voice_pi")
+
+
+class TemperatureParseTests(unittest.TestCase):
+    """vp_transcribe._parse_temperatures: CSV float list with a safe
+    default if unset, empty, or malformed."""
+
+    def setUp(self):
+        for n in ("vp_transcribe", "vp_audio"):
+            sys.modules.pop(n, None)
+        sys.modules.setdefault("numpy", types.ModuleType("numpy"))
+        import vp_transcribe
+        self.t = vp_transcribe
+
+    def test_unset_returns_default_ladder(self):
+        self.assertEqual(self.t._parse_temperatures(None), [0.0, 0.2])
+        self.assertEqual(self.t._parse_temperatures(""), [0.0, 0.2])
+        self.assertEqual(self.t._parse_temperatures("   "), [0.0, 0.2])
+
+    def test_single_value_locks_decode(self):
+        self.assertEqual(self.t._parse_temperatures("0.0"), [0.0])
+        self.assertEqual(self.t._parse_temperatures("0"), [0.0])
+        self.assertEqual(self.t._parse_temperatures("0.4"), [0.4])
+
+    def test_csv_ladder(self):
+        self.assertEqual(self.t._parse_temperatures("0.0,0.2,0.4"),
+                         [0.0, 0.2, 0.4])
+        # Whitespace tolerated around commas.
+        self.assertEqual(self.t._parse_temperatures(" 0.0 , 0.5 "),
+                         [0.0, 0.5])
+
+    def test_malformed_falls_back_to_default(self):
+        self.assertEqual(self.t._parse_temperatures("not-a-number"),
+                         [0.0, 0.2])
+        self.assertEqual(self.t._parse_temperatures("0.0,abc"),
+                         [0.0, 0.2])
+
+
+class ContextMinSecondsTests(unittest.TestCase):
+    """VOICEPI_CONTEXT_MIN_SECONDS gates condition_on_previous_text:
+      * 0 (default)  -> always False (backwards-compatible)
+      * > 0          -> True only when utterance duration meets the bar
+    The bar lives in vp_transcribe.CONTEXT_MIN_SECONDS; the gate itself
+    is one line in _transcribe so we mirror its expression here."""
+
+    def _gate(self, threshold: float, dur: float) -> bool:
+        return threshold > 0 and dur >= threshold
+
+    def test_zero_threshold_never_enables_context(self):
+        for dur in (0.0, 1.0, 5.0, 30.0, 1000.0):
+            self.assertFalse(self._gate(0.0, dur),
+                             f"threshold=0, dur={dur} must stay False")
+
+    def test_positive_threshold_gates_on_duration(self):
+        self.assertFalse(self._gate(5.0, 4.9))
+        self.assertTrue(self._gate(5.0, 5.0))
+        self.assertTrue(self._gate(5.0, 19.4))
 
 
 if __name__ == "__main__":

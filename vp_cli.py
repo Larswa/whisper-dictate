@@ -11,7 +11,7 @@ import os
 
 from vp_audio import MIN_INPUT_DBFS, MIN_INPUT_SNR_DB, TARGET_DBFS
 from vp_device import VALID_DEVICES
-from vp_transcribe import BEAM_SIZE
+from vp_transcribe import BEAM_SIZE, CONTEXT_MIN_SECONDS, TEMPERATURES
 
 MODEL_NAME = os.environ.get("VOICEPI_MODEL", "large-v3-turbo")
 DEVICE = os.environ.get("VOICEPI_DEVICE", "auto")
@@ -86,6 +86,8 @@ def _print_effective_config(args, dev: str, ctype: str) -> None:
         ("--device",         f"{args.device}  ->  resolved: {dev} / {ctype}"),
         ("compute_type",     f"{ctype}  (env VOICEPI_COMPUTE_TYPE={_env('VOICEPI_COMPUTE_TYPE')})"),
         ("beam_size",        f"{BEAM_SIZE}  (env VOICEPI_BEAM_SIZE={_env('VOICEPI_BEAM_SIZE')})"),
+        ("temperature",      f"{TEMPERATURES}  (env VOICEPI_TEMPERATURE={_env('VOICEPI_TEMPERATURE')})"),
+        ("context_min_s",    f"{CONTEXT_MIN_SECONDS}  (env VOICEPI_CONTEXT_MIN_SECONDS={_env('VOICEPI_CONTEXT_MIN_SECONDS')})"),
         ("initial_prompt",   prompt_preview),
         ("quit",             f"{QUIT_COUNT}x Esc within {QUIT_WINDOW_MS}ms  "
                              f"(env VOICEPI_QUIT_COUNT={_env('VOICEPI_QUIT_COUNT')})"),

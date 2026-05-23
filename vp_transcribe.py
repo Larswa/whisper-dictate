@@ -25,6 +25,34 @@ BEAM_SIZE = int(os.environ.get("VOICEPI_BEAM_SIZE", "1"))
 # recognition of domain-specific terms (product names, jargon, names).
 INITIAL_PROMPT = os.environ.get("VOICEPI_INITIAL_PROMPT") or None
 
+
+def _parse_temperatures(spec: str | None) -> list[float]:
+    # Comma-separated floats; "0.0,0.2" by default. Set "0.0" (or "0")
+    # to lock Whisper to greedy decode — eliminates the fallback to
+    # higher-temperature decodes that can produce more "creative"
+    # (= less faithful) text when the greedy pass hits no_speech /
+    # log_prob thresholds.
+    raw = (spec or "0.0,0.2").strip()
+    try:
+        out = [float(p.strip()) for p in raw.split(",") if p.strip()]
+    except ValueError:
+        out = []
+    return out or [0.0, 0.2]
+
+
+# Whisper decode-temperature ladder. faster-whisper retries at the next
+# temperature when the previous decode trips an internal no_speech /
+# log_prob threshold. Lock to "0.0" via env for predictable output.
+TEMPERATURES = _parse_temperatures(os.environ.get("VOICEPI_TEMPERATURE"))
+
+# Pass `condition_on_previous_text=True` only on utterances longer
+# than CONTEXT_MIN_SECONDS. Defaults to 0 = always False (avoids
+# Whisper hallucinating continuations on short/quiet input — what
+# the HALLUCINATIONS set was added to filter). Set to e.g. 5 to opt
+# long utterances into context-conditioned decode, which helps
+# Whisper keep word boundaries coherent across segments.
+CONTEXT_MIN_SECONDS = float(os.environ.get("VOICEPI_CONTEXT_MIN_SECONDS", "0"))
+
 # Whisper hallucinerer disse sætninger på kort/stille lyd — ignorer dem.
 HALLUCINATIONS: frozenset[str] = frozenset({
     "tak",
@@ -71,14 +99,15 @@ def _transcribe(model, pcm: np.ndarray, lang: str | None) -> str:
     audio = _boost_quiet(raw_audio)
     dur = len(audio) / SR
     in_dbfs = 20 * np.log10(float(np.sqrt(np.mean(audio**2)) or 1e-9))
+    use_context = CONTEXT_MIN_SECONDS > 0 and dur >= CONTEXT_MIN_SECONDS
     t0 = time.monotonic()
     segments, _ = model.transcribe(
         audio,
         language=lang,
         initial_prompt=INITIAL_PROMPT,
         beam_size=BEAM_SIZE,
-        temperature=[0.0, 0.2],
-        condition_on_previous_text=False,
+        temperature=TEMPERATURES,
+        condition_on_previous_text=use_context,
         no_speech_threshold=0.45,
         log_prob_threshold=-1.0,
         vad_filter=True,

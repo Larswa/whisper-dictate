@@ -23,6 +23,8 @@ upgrade wipes them.
 | **Compute type / precision** | `VOICEPI_COMPUTE_TYPE` | _none_ | `int8_float16` (GPU) / `int8` (CPU) | `int8`, `int8_float16`, `float16`, `bfloat16`, `float32` | precision override — `float16` for accuracy on big GPUs; see VRAM table below |
 | **Spoken language** | `VOICEPI_LANG` | `--lang` / `--autodetect` | _(unset → auto-detect)_ | ISO 639-1: `da`, `en`, `de`, `fr`, `sv`, `nb`, `nl`, `fi`, `pl`, `pt`, `es`, `it`, `uk`, … | language hint; strongly recommended for short utterances |
 | **Beam-search width** | `VOICEPI_BEAM_SIZE` | _none_ | `1` | integer ≥ 1 (typical 1-16) | wider = more accurate, slower (cheap on GPU) |
+| **Decode temperatures** | `VOICEPI_TEMPERATURE` | _none_ | `0.0,0.2` | CSV floats (e.g. `0.0`, `0.0,0.2,0.4`) | Whisper's fallback ladder. `0.0` locks to greedy decode = predictable output, no "creative" fallback on uncertainty. |
+| **Context for long ytringer** | `VOICEPI_CONTEXT_MIN_SECONDS` | _none_ | `0` (off) | float seconds (`0` = disabled, `5` = enable for utterances ≥ 5 s) | Pass `condition_on_previous_text=True` only when an utterance is at least this long. Helps Whisper keep word boundaries on long sentences without triggering hallucinations on short ones. |
 | **Vocabulary hint** | `VOICEPI_INITIAL_PROMPT` | _none_ | _(unset)_ | free text up to ~1024 chars | bias toward your domain words/names |
 | **Push-to-talk key** | `VOICEPI_KEY` | `--key` | `ctrl_r` | pynput key name (`ctrl_r`, `alt_r`, `f9`, …) or `a+b` chord | hold-to-talk key |
 | **Inject mode** | `VOICEPI_INJECT_MODE` | `--paste` / `--no-type` | `type` | `type` \| `paste` \| `print` | direct typing, clipboard paste (X11/Win), or print-only (testing) |

@@ -107,8 +107,9 @@ from vp_keymap import (  # noqa: E402
     _LANG_TO_XKB, _LAYOUT_KEYCODES, _build_ydotool_ops, _detect_xkb_layout,
 )
 from vp_transcribe import (  # noqa: E402
+    CONTEXT_MIN_SECONDS,
     HALLUCINATIONS as _HALLUCINATIONS,
-    INITIAL_PROMPT, SR, _transcribe, is_hallucination,
+    INITIAL_PROMPT, SR, TEMPERATURES, _transcribe, is_hallucination,
 )
 
 

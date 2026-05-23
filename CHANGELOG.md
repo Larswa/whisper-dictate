@@ -11,6 +11,11 @@ release because `release.yml` bumps in-place after the tag is pushed.
 
 ## [Unreleased]
 
+### Added
+- `VOICEPI_TEMPERATURE` env-var: comma-separated list of Whisper decode temperatures (default `0.0,0.2`). Set to `0.0` to lock to greedy decode and eliminate the fallback that produces "creative" output on uncertain segments.
+- `VOICEPI_CONTEXT_MIN_SECONDS` env-var: pass `condition_on_previous_text=True` only when the utterance is at least this long (default `0` = always off). Useful for long sentences where context helps Whisper keep word boundaries coherent.
+- 6 new unit tests covering `_parse_temperatures` parsing and the duration-gated context decision.
+
 ## [0.2.36] - 2026-05-23
 
 ### Added
