@@ -47,11 +47,8 @@ jobs:
           args: -color
 
   smoke:
-    # End-to-end import sanity: numpy is the only heavy dep needed for
-    # --help (sounddevice, pynput, faster_whisper are lazy-loaded inside
-    # Dictate / __main__). If a future change re-couples them to import
-    # time, this job fails on Windows + Linux before users see the
-    # broken installer.
+    # End-to-end import sanity for the top-level CLI path. pynput needs a
+    # display backend on Linux, so run --help under Xvfb there.
     strategy:
       fail-fast: false
       matrix:
@@ -63,16 +60,17 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install minimal deps
-        # numpy: required at voice_pi import time. sounddevice +
-        # faster_whisper stay lazy so they don't bloat the smoke job.
-        run: python -m pip install --quiet numpy
-      - name: Install pynput (Windows only)
-        # pynput imports an X11/evdev backend on Linux which fails on
-        # headless runners. We only need it for the probe-key step
-        # which is Windows-only anyway.
+        # numpy + pynput are imported at voice_pi import time. sounddevice
+        # and faster_whisper stay lazy so they don't bloat the smoke job.
+        run: python -m pip install --quiet numpy pynput
+      - name: Install Xvfb (Linux only)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: voice_pi --help (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python voice_pi.py --help
+      - name: voice_pi --help (Windows)
         if: runner.os == 'Windows'
-        run: python -m pip install --quiet pynput
-      - name: voice_pi --help
         run: python voice_pi.py --help
       - name: probe-key.py sanity (returns 3 for unknown key)
         # pynput needs a display backend on Linux (Xlib / evdev); the
