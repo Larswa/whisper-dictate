@@ -11,6 +11,11 @@ release because `release.yml` bumps in-place after the tag is pushed.
 
 ## [Unreleased]
 
+## [0.2.38] - 2026-05-23
+
+### Fixed
+- **Injection regression on Windows**: revert `from pynput import keyboard` from lazy (inside `Dictate.__init__`) back to module top-level in `voice_pi.py` and `vp_inject.py`. The lazy import (introduced in v0.2.36's refactor) appears to have introduced a subtle timing issue where pynput's `Controller.type(text)` dropped some spaces between words on the target terminal — reported as concatenations like "harjegbundetden" / "stillsomethingfishy" in injected text even though `[stt]` showed the correct Whisper output. `sounddevice` stays lazy so the smoke-test job remains lightweight.
+
 ## [0.2.37] - 2026-05-23
 
 ### Added

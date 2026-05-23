@@ -44,6 +44,7 @@ import threading
 import time
 
 import numpy as np
+from pynput import keyboard
 
 
 # --- CUDA runtime DLL bootstrap (Windows) -------------------------------
@@ -120,8 +121,6 @@ class Dictate(InjectMixin):
     def __init__(self, model: "WhisperModel", key: str, mode: str,
                  lang: str | None):
         global _ARECORD_DEVICE
-        # Lazy: keep argparse/--help working without audio + input backends.
-        from pynput import keyboard
         self.model = model
         self.key = key
         self.mode = mode  # "type" | "paste" | "print"
@@ -316,7 +315,6 @@ class Dictate(InjectMixin):
             return
 
         # --- pynput fallback (X11 / Windows / macOS) ---
-        from pynput import keyboard
         targets = set()
         for kn in key_names:
             k = getattr(keyboard.Key, kn, None)
