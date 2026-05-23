@@ -11,6 +11,20 @@ release because `release.yml` bumps in-place after the tag is pushed.
 
 ## [Unreleased]
 
+## [0.2.41] - 2026-05-23
+
+### Added
+- `VOICEPI_INJECT_MODE=auto` is now the default injection strategy. It types directly except for known fragile Windows terminal targets, where it uses clipboard paste.
+- `--type` CLI flag to force direct keyboard typing when `auto` or env configuration would choose another strategy.
+- `scripts/inject-smoke.py` for manual injection checks against Notepad, Windows Terminal, Claude Code, browser fields, and other targets without loading Whisper.
+- Startup now prints the running `whisper-dictate` version in the launcher/terminal window. Release zips and Windows installers get the version from the tag; development checkouts fall back to `git describe`.
+
+### Changed
+- `pynput` is lazy-loaded again so `python voice_pi.py --help` stays independent of OS keyboard backends.
+- Replaced the pynput listener polling loop with `Listener.join()` and changed the `arecord` probe from raw sleep to process timeout handling.
+- `windows-installer.yml` now treats `vp_*.py` changes as Windows-relevant, so installer builds are not skipped when split modules change.
+- Windows/Linux launchers no longer force `--paste`; they let the app's `auto` injection strategy decide unless the user passes an explicit mode.
+
 ## [0.2.40] - 2026-05-23
 
 ### Removed

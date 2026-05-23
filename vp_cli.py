@@ -9,19 +9,17 @@ from __future__ import annotations
 import argparse
 import os
 
-from vp_audio import MIN_INPUT_DBFS, MIN_INPUT_SNR_DB, TARGET_DBFS
 from vp_device import VALID_DEVICES
-from vp_transcribe import BEAM_SIZE, CONTEXT_MIN_SECONDS, TEMPERATURES
 
 MODEL_NAME = os.environ.get("VOICEPI_MODEL", "large-v3-turbo")
 DEVICE = os.environ.get("VOICEPI_DEVICE", "auto")
 LANG = os.environ.get("VOICEPI_LANG")  # None -> Whisper auto-detects
 KEY = os.environ.get("VOICEPI_KEY", "ctrl_r")
 
-VALID_INJECT_MODES = ("type", "paste", "print")
-INJECT_MODE = (os.environ.get("VOICEPI_INJECT_MODE") or "type").strip().lower()
+VALID_INJECT_MODES = ("auto", "type", "paste", "print")
+INJECT_MODE = (os.environ.get("VOICEPI_INJECT_MODE") or "auto").strip().lower()
 if INJECT_MODE not in VALID_INJECT_MODES:
-    INJECT_MODE = "type"
+    INJECT_MODE = "auto"
 
 # Global quit shortcut for the pynput path (Windows/X11). N consecutive
 # Esc presses within QUIT_WINDOW_MS quit the app. Default 3 — avoids
@@ -45,9 +43,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--autodetect", action="store_true",
                     help="explicitly auto-detect language (alias for omitting --lang)")
     g = ap.add_mutually_exclusive_group()
+    g.add_argument("--type", action="store_const", dest="mode",
+                   const="type",
+                   help="force direct keyboard typing; env VOICEPI_INJECT_MODE")
     g.add_argument("--paste", action="store_const", dest="mode",
                    const="paste",
-                   help="inject via clipboard + Ctrl+V on X11/Windows "
+                   help="force clipboard + Ctrl+V on X11/Windows "
                         "(on Wayland direct evdev keycodes are always used)")
     g.add_argument("--no-type", action="store_const", dest="mode",
                    const="print", help="just print, don't inject")
@@ -76,6 +77,9 @@ def _print_effective_config(args, dev: str, ctype: str) -> None:
     else:
         prompt_body = "(unset)"
     prompt_preview = f"{prompt_body}  (env VOICEPI_INITIAL_PROMPT)"
+
+    from vp_audio import MIN_INPUT_DBFS, MIN_INPUT_SNR_DB, TARGET_DBFS
+    from vp_transcribe import BEAM_SIZE, CONTEXT_MIN_SECONDS, TEMPERATURES
 
     rows = [
         ("--key",            f"{args.key}  (env VOICEPI_KEY={_env('VOICEPI_KEY')})"),

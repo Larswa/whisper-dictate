@@ -247,7 +247,8 @@ NVIDIA GPU is used automatically if present.
 | `--key a+b` | chord: hold **both** keys simultaneously, e.g. `shift_r+ctrl_r` |
 | `--lang CODE` | spoken-language hint — see [Languages](#languages) |
 | `--autodetect` | let Whisper guess the language (less reliable on short speech) |
-| `--paste` | inject via clipboard + Ctrl+V on X11/Windows (env `VOICEPI_INJECT_MODE=paste`; Wayland always uses direct evdev keycodes) |
+| `--type` | force direct keyboard typing on X11/Windows (env `VOICEPI_INJECT_MODE=type`; Wayland always uses direct evdev keycodes) |
+| `--paste` | force clipboard + Ctrl+V on X11/Windows (env `VOICEPI_INJECT_MODE=paste`; Wayland always uses direct evdev keycodes) |
 | `--no-type` | print transcription only, don't inject (env `VOICEPI_INJECT_MODE=print`; useful for testing) |
 | `--model NAME` | Whisper model (default `large-v3-turbo`; env `VOICEPI_MODEL`) |
 | `--device D` | `auto`/`cuda`/`cpu` (default `auto`; env `VOICEPI_DEVICE`; invalid values are rejected) |
@@ -294,7 +295,7 @@ Nix / CLI): see **[CONFIGURATION.md](CONFIGURATION.md)**. The most common knobs:
 | `VOICEPI_DEVICE` | `auto` | `cuda`/`cpu` to force; `auto` = NVIDIA if present |
 | `VOICEPI_LANG` | _(auto-detect)_ | spoken-language hint (`da`, `en`, `de`, `fr`…) |
 | `VOICEPI_KEY` | `ctrl_r` | hold-to-talk key or chord, e.g. `f9`, `alt_r`, `ctrl_l+space` |
-| `VOICEPI_INJECT_MODE` | `type` | `type`, `paste`, or `print`; `paste` copies text to clipboard and sends paste on X11/Windows |
+| `VOICEPI_INJECT_MODE` | `auto` | `auto`, `type`, `paste`, or `print`; `auto` types directly except for known fragile Windows terminal targets, where it uses paste |
 | `VOICEPI_BEAM_SIZE` | `1` | raise to `5` for better accuracy — 3-4× slower on CPU |
 | `VOICEPI_INITIAL_PROMPT` | _(none)_ | context hint for domain-specific terms, e.g. `"Winget, whisper-dictate"` |
 | `VOICEPI_COMPUTE_TYPE` | _(default: `int8_float16` on GPU, `int8` on CPU)_ | force precision (`float16`, `bfloat16`, `float32`) — see VRAM table in [CONFIGURATION.md](CONFIGURATION.md) |
@@ -308,6 +309,11 @@ excellent, 15–25 dB workable, <15 dB the mic or room is the limit.
 Full reference — every `[cap]`/`[gate]`/`[stt]` field, what good vs bad looks
 like, and how to compare two microphones: see
 [MICROPHONE.md](MICROPHONE.md).
+
+To test text injection without recording or loading Whisper, focus a target
+input field and run `python scripts/inject-smoke.py --mode auto`. Try the same
+target with `--mode type` and `--mode paste` when diagnosing app-specific input
+behaviour.
 
 ## Technical documentation
 

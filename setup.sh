@@ -11,8 +11,8 @@
 # large-v3-turbo).
 #
 # Args pass straight to voice_pi.py, e.g.:  ./setup.sh --lang de
-# With none it defaults to: --paste --key shift_r+ctrl_r  (Wayland)
-#                        or: --paste                       (X11)
+# With none it uses voice_pi.py defaults; on Wayland only the hotkey
+# defaults to shift_r+ctrl_r because right Ctrl is often less reliable there.
 # Stop the running tool with Esc (or Ctrl+C).
 #
 # WAYLAND SETUP (one-time, Ubuntu 24.04+):
@@ -29,6 +29,14 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="${HOME}/.venv-whisper-dictate"
 VENVPY="${VENV}/bin/python"
 APP="${HERE}/voice_pi.py"
+if [ -f "${HERE}/VERSION" ]; then
+  echo "whisper-dictate $(head -n1 "${HERE}/VERSION")"
+elif command -v git >/dev/null 2>&1 && git -C "${HERE}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "whisper-dictate $(git -C "${HERE}" describe --tags --always --dirty | sed 's/^v//')"
+else
+  echo "whisper-dictate dev"
+fi
+export VOICEPI_LAUNCHER_PRINTED_VERSION=1
 # Python to build the venv from. Override for non-apt environments
 # (e.g. the Homebrew formula points this at the brewed python@3.12).
 PYBIN="${VOICEPI_PYTHON:-python3}"
@@ -41,13 +49,13 @@ for f in "${HERE}/requirements.txt" "${HERE}/requirements-cpu.txt" "${HERE}/requ
 done
 [ -n "$REQ" ] || { echo "no requirements file next to setup.sh" >&2; exit 1; }
 
-# Default args: on Wayland use chord hotkey; on X11 use single key.
+# Default args: on Wayland use chord hotkey; on X11 use voice_pi.py defaults.
 if [ "$#" -gt 0 ]; then
   ARGS=("$@")
 elif [ "${WAYLAND_DISPLAY:-}" != "" ] || [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
-  ARGS=(--paste --key shift_r+ctrl_r)
+  ARGS=(--key shift_r+ctrl_r)
 else
-  ARGS=(--paste)
+  ARGS=()
 fi
 
 # --- system prerequisites ------------------------------------------
@@ -65,15 +73,6 @@ if [ -z "${VOICEPI_SKIP_SYSCHECK:-}" ]; then
     echo "    sudo apt update && sudo apt install -y ${need_apt[*]}" >&2
     exit 1
   fi
-fi
-
-# Clipboard tool for --paste (Wayland → wl-clipboard, X11 → xclip).
-if [ "${XDG_SESSION_TYPE:-}" = "wayland" ] || [ "${WAYLAND_DISPLAY:-}" != "" ]; then
-  command -v wl-copy >/dev/null 2>&1 || \
-    echo "WARNING: no wl-copy (install wl-clipboard) — --paste needs it" >&2
-else
-  command -v xclip >/dev/null 2>&1 || command -v xsel >/dev/null 2>&1 || \
-    echo "WARNING: no xclip/xsel — --paste needs a clipboard tool" >&2
 fi
 
 # Wayland: check input group for evdev hotkey access

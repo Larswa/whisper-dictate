@@ -380,6 +380,53 @@ class ArgumentParserTests(unittest.TestCase):
             self.assertEqual(parser.parse_args([]).mode, "paste")
             self.assertEqual(parser.parse_args(["--no-type"]).mode, "print")
             self.assertEqual(parser.parse_args(["--paste"]).mode, "paste")
+            self.assertEqual(parser.parse_args(["--type"]).mode, "type")
+
+    def test_parser_defaults_to_auto_inject_mode(self):
+        old = os.environ.pop("VOICEPI_INJECT_MODE", None)
+        try:
+            voice_pi = load_voice_pi()
+            parser = voice_pi.build_arg_parser()
+        finally:
+            if old is not None:
+                os.environ["VOICEPI_INJECT_MODE"] = old
+
+        self.assertEqual(parser.parse_args([]).mode, "auto")
+
+
+class InjectStrategyTests(unittest.TestCase):
+    def setUp(self):
+        for n in ("vp_inject", "vp_keymap"):
+            sys.modules.pop(n, None)
+        import vp_inject
+        self.inject = vp_inject
+
+    def _dummy(self, title=None, process=None):
+        return types.SimpleNamespace(
+            _inject_target_title=title,
+            _inject_target_process=process,
+        )
+
+    def test_windows_terminal_targets_prefer_paste(self):
+        target = self._dummy("Administrator: Windows PowerShell", "WindowsTerminal.exe")
+
+        with patch.object(self.inject.os, "name", "nt"):
+            self.assertTrue(
+                self.inject.InjectMixin._target_prefers_paste(target))
+
+    def test_regular_windows_targets_still_type(self):
+        target = self._dummy("Untitled - Notepad", "notepad.exe")
+
+        with patch.object(self.inject.os, "name", "nt"):
+            self.assertFalse(
+                self.inject.InjectMixin._target_prefers_paste(target))
+
+    def test_non_windows_targets_still_type(self):
+        target = self._dummy("Windows Terminal", "WindowsTerminal.exe")
+
+        with patch.object(self.inject.os, "name", "posix"):
+            self.assertFalse(
+                self.inject.InjectMixin._target_prefers_paste(target))
 
 
 @contextmanager

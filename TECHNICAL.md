@@ -85,8 +85,9 @@ User holds hotkey
 │                                                        │    │
 │  X11/Windows ──────────────────────────────────────────┘    │
 │                                                             │
-│    --paste flag: pyperclip.copy() + pynput Ctrl+V           │
-│    default:      pynput keyboard.Controller().type()        │
+│    auto: paste for fragile Windows terminals, else type     │
+│    --paste: pyperclip.copy() + pynput Ctrl+V                │
+│    --type:  pynput keyboard.Controller().type()             │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼

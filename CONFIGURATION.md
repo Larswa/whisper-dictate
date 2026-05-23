@@ -27,7 +27,7 @@ upgrade wipes them.
 | **Context for long ytringer** | `VOICEPI_CONTEXT_MIN_SECONDS` | _none_ | `0` (off) | float seconds (`0` = disabled, `5` = enable for utterances ≥ 5 s) | Pass `condition_on_previous_text=True` only when an utterance is at least this long. Helps Whisper keep word boundaries on long sentences without triggering hallucinations on short ones. |
 | **Vocabulary hint** | `VOICEPI_INITIAL_PROMPT` | _none_ | _(unset)_ | free text up to ~1024 chars | bias toward your domain words/names |
 | **Push-to-talk key** | `VOICEPI_KEY` | `--key` | `ctrl_r` | pynput key name (`ctrl_r`, `alt_r`, `f9`, …) or `a+b` chord | hold-to-talk key |
-| **Inject mode** | `VOICEPI_INJECT_MODE` | `--paste` / `--no-type` | `type` | `type` \| `paste` \| `print` | direct typing, clipboard paste (X11/Win), or print-only (testing) |
+| **Inject mode** | `VOICEPI_INJECT_MODE` | `--type` / `--paste` / `--no-type` | `auto` | `auto` \| `type` \| `paste` \| `print` | auto-select injection strategy, force typing, force clipboard paste (X11/Win), or print-only |
 | **Global quit count** | `VOICEPI_QUIT_COUNT` | _none_ | `3` | integer ≥ 0 (`0` disables) | N consecutive Esc to quit (Windows/X11) |
 | **Quit window** | `VOICEPI_QUIT_WINDOW_MS` | _none_ | `1500` | integer ms | time window for the consecutive Esc presses |
 | **Audio loudness target** | `VOICEPI_TARGET_DBFS` | _none_ | `-20` | float dBFS ≤ 0 | target for quiet-boost normalisation |
@@ -52,7 +52,7 @@ the **GPU VRAM sizing** table further down.
 | `VOICEPI_KEY` | `ctrl_r` | pynput key name, or chord `a+b` | Hold-to-talk key. e.g. `ctrl_r`, `alt_r`, `shift_r`, `f9`, or `shift_r+ctrl_r` (hold both). Also `--key`. |
 | `VOICEPI_BEAM_SIZE` | `1` | integer ≥ 1 (typical `1`–`5`) | Beam-search width. `1` = fastest; `5` = better accuracy, 3–4× slower on CPU (cheap on GPU). Env only — no flag. |
 | `VOICEPI_INITIAL_PROMPT` | *(none)* | free text | Context/vocabulary hint biasing recognition toward your terms/names. Env only. |
-| `VOICEPI_INJECT_MODE` | `type` | `type` \| `paste` \| `print` | Controls text output injection. `type` sends direct keystrokes, `paste` copies the text to the clipboard and sends paste on X11/Windows, and `print` only writes the transcription to stdout. `--paste`/`--no-type` override this env var. |
+| `VOICEPI_INJECT_MODE` | `auto` | `auto` \| `type` \| `paste` \| `print` | Controls text output injection. `auto` types directly except for known fragile Windows terminal targets, where it uses clipboard paste. `type` always sends direct keystrokes, `paste` copies the text to the clipboard and sends paste on X11/Windows, and `print` only writes the transcription to stdout. `--type`/`--paste`/`--no-type` override this env var. |
 | `VOICEPI_QUIT_COUNT` | `3` | integer ≥ 0 | **Windows/X11 only** (pynput path). N consecutive Esc presses within `VOICEPI_QUIT_WINDOW_MS` quit the app. Default `3` avoids accidental shutdown since pynput catches Esc system-wide. Set `0` to disable global Esc-quit entirely (rely on Ctrl+C in the launcher console); set `1` for legacy single-Esc behaviour. |
 | `VOICEPI_QUIT_WINDOW_MS` | `1500` | integer ms | Time window within which the consecutive Esc presses count toward `VOICEPI_QUIT_COUNT`. Any non-Esc key press resets the counter. |
 | `VOICEPI_TARGET_DBFS` | `-20` | float (dBFS, ≤ 0) | Loudness quiet input is normalised toward. Lower (e.g. `-16`) = boost quiet speech harder. |
@@ -118,7 +118,7 @@ setting + the env var that supplied it:
   quit               3x Esc within 1500ms  (env VOICEPI_QUIT_COUNT=3)
   audio thresholds   target_dbfs=-20.0  min_input_dbfs=-55.0  min_snr_db=6.0
   XKB (Wayland)      VOICEPI_XKB_LAYOUT=(unset)  XKB_DEFAULT_LAYOUT=da
-  inject mode        type  (env VOICEPI_INJECT_MODE=(unset))
+  inject mode        auto  (env VOICEPI_INJECT_MODE=(unset))
 loading Whisper large-v3 on cuda (float16)…
 ```
 
@@ -138,7 +138,8 @@ Passed after the launcher (`setup.cmd` / `setup.sh` / `whisper-dictate`):
 | `--lang CODE` | `$VOICEPI_LANG` | ISO 639-1 code | Force language for this run. Omit to auto-detect. |
 | `--autodetect` | off | — | Force language auto-detect (overrides `--lang`/`VOICEPI_LANG`). |
 | `--device D` | `$VOICEPI_DEVICE` | `auto` \| `cuda` \| `cpu` | Compute device for this run. |
-| `--paste` | `$VOICEPI_INJECT_MODE` or off | — | X11/Windows: inject via clipboard + Ctrl+V. (Wayland always uses direct evdev keycodes regardless.) |
+| `--type` | `$VOICEPI_INJECT_MODE` or off | — | Force direct keyboard typing on X11/Windows. (Wayland always uses direct evdev keycodes regardless.) |
+| `--paste` | `$VOICEPI_INJECT_MODE` or off | — | Force clipboard + Ctrl+V on X11/Windows. (Wayland always uses direct evdev keycodes regardless.) |
 | `--no-type` | `$VOICEPI_INJECT_MODE` or off | — | Print the transcription only, don't inject (testing). |
 
 ## How to set them, per environment
@@ -156,7 +157,7 @@ setx VOICEPI_INITIAL_PROMPT "rødgrød med fløde, FactusConsulting, whisper-dic
 setx VOICEPI_MODEL large-v3
 setx VOICEPI_DEVICE cuda
 setx VOICEPI_KEY "ctrl_l+space"
-setx VOICEPI_INJECT_MODE paste
+setx VOICEPI_INJECT_MODE auto
 # then restart whisper-dictate (new process picks them up)
 ```
 
@@ -168,6 +169,25 @@ One-off via terminal (the installer put the dir on PATH):
 
 Or make your **own** shortcut whose Target is
 `%LOCALAPPDATA%\Programs\WhisperDictate\setup.cmd --key ctrl_r --lang da`
+
+### Injection smoke test
+
+To test a target app without loading Whisper, focus the input field and run:
+
+```powershell
+python scripts/inject-smoke.py --mode auto
+python scripts/inject-smoke.py --mode type
+python scripts/inject-smoke.py --mode paste
+```
+
+Use this to compare Notepad, Windows Terminal, Claude Code, browser text
+areas, and other targets with the exact same injection code path as the app.
+
+## Version display
+
+The launcher prints `whisper-dictate <version>` when the terminal window opens.
+Release zips and Windows installers include a `VERSION` file generated from
+the release tag; development checkouts fall back to `git describe`.
 (don't edit the installer-created shortcut — an upgrade may recreate it).
 
 Revert language to auto: `setx VOICEPI_LANG ""` then restart, or pass

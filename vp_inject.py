@@ -11,8 +11,17 @@ from __future__ import annotations
 import os
 import time
 
-from pynput import keyboard
 from vp_keymap import _build_ydotool_ops
+
+
+_WINDOWS_PASTE_TARGETS = (
+    "windows terminal",
+    "powershell",
+    "command prompt",
+    "cmd.exe",
+    "claude",
+    "codex",
+)
 
 
 class InjectMixin:
@@ -23,6 +32,10 @@ class InjectMixin:
         import subprocess, shutil
         self._inject_target_xwin = None
         self._inject_target_title = None
+        self._inject_target_process = None
+        if os.name == "nt":
+            self._capture_windows_target()
+            return
         if not shutil.which("xdotool"):
             return
         try:
@@ -38,6 +51,47 @@ class InjectMixin:
                 self._inject_target_title = rt.stdout.decode().strip()
         except Exception:
             pass
+
+    def _capture_windows_target(self) -> None:
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            user32 = ctypes.windll.user32
+            hwnd = user32.GetForegroundWindow()
+            if not hwnd:
+                return
+
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length:
+                buf = ctypes.create_unicode_buffer(length + 1)
+                user32.GetWindowTextW(hwnd, buf, length + 1)
+                self._inject_target_title = buf.value
+
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if pid.value:
+                self._inject_target_process = self._windows_process_name(
+                    ctypes, wintypes, pid.value)
+        except Exception:
+            pass
+
+    def _windows_process_name(self, ctypes, wintypes, pid: int) -> str | None:
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            return None
+        try:
+            size = wintypes.DWORD(32768)
+            buf = ctypes.create_unicode_buffer(size.value)
+            if kernel32.QueryFullProcessImageNameW(
+                    handle, 0, buf, ctypes.byref(size)):
+                return os.path.basename(buf.value)
+            return str(pid)
+        finally:
+            kernel32.CloseHandle(handle)
 
     def _restore_target_focus(self) -> bool:
         # For Wayland-native windows (gedit, ghostty…) xdotool finds an XID
@@ -141,6 +195,25 @@ class InjectMixin:
             print(f"[ydotool] error: {e}", flush=True)
             return False
 
+    def _target_prefers_paste(self) -> bool:
+        if os.name != "nt":
+            return False
+        target = " ".join(filter(None, (
+            getattr(self, "_inject_target_title", None),
+            getattr(self, "_inject_target_process", None),
+        ))).lower()
+        return any(term in target for term in _WINDOWS_PASTE_TARGETS)
+
+    def _paste(self, text: str) -> None:
+        import pyperclip
+        from pynput import keyboard
+
+        pyperclip.copy(text)
+        self._kb.press(keyboard.Key.ctrl)
+        self._kb.press("v")
+        self._kb.release("v")
+        self._kb.release(keyboard.Key.ctrl)
+
     def _inject(self, text: str):
         if self.mode == "print":
             print(f"  (heard) {text}", flush=True)
@@ -177,13 +250,13 @@ class InjectMixin:
                 self._kb.type(text)
             return
 
-        # X11 / Windows / macOS: paste via clipboard or type per --paste flag.
-        if self.mode == "paste":
-            import pyperclip
-            pyperclip.copy(text)
-            self._kb.press(keyboard.Key.ctrl)
-            self._kb.press("v")
-            self._kb.release("v")
-            self._kb.release(keyboard.Key.ctrl)
+        # X11 / Windows / macOS: auto chooses paste for known fragile terminal
+        # targets, otherwise direct typing. Explicit --paste/--type override it.
+        mode = self.mode
+        if mode == "auto":
+            mode = "paste" if self._target_prefers_paste() else "type"
+            print(f"[inject] strategy: {mode}", flush=True)
+        if mode == "paste":
+            self._paste(text)
             return
         self._kb.type(text)

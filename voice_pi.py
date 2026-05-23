@@ -18,7 +18,8 @@ Hold RIGHT CTRL, speak, release → text appears at your cursor.
   --key f9        use a different hold-to-talk key (ctrl_r, alt_r, f9…;
                   env VOICEPI_KEY)
   --key a+b       chord: hold BOTH keys simultaneously (e.g. shift_r+ctrl_r)
-  --paste         inject via clipboard + Ctrl+V on X11/Windows
+  --type          force direct keyboard typing on X11/Windows
+  --paste         force clipboard + Ctrl+V on X11/Windows
                   (on Wayland direct evdev keycodes are always used instead)
   --no-type       just print what was heard (don't inject — testing)
   --model NAME    Whisper model (default large-v3-turbo, the fastest;
@@ -42,10 +43,6 @@ import site
 import sys
 import threading
 import time
-
-import numpy as np
-from pynput import keyboard
-
 
 # --- CUDA runtime DLL bootstrap (Windows) -------------------------------
 # ctranslate2 (faster-whisper's backend) needs the CUDA runtime libs
@@ -83,23 +80,19 @@ try:
 except Exception:  # noqa: BLE001 — never block startup on this
     pass
 
-# faster_whisper is imported lazily in __main__ so --help and unit-test
-# imports stay light (numpy is the only heavy dep loaded at module-load
-# time). The CUDA DLL bootstrap above must still run BEFORE faster_whisper
-# is first imported, which the lazy import preserves.
+# faster_whisper and numpy are imported lazily so --help and smoke tests stay
+# independent of ML/audio/keyboard backends. The CUDA DLL bootstrap above must
+# still run BEFORE faster_whisper is first imported, which the lazy import
+# preserves.
 
 # --- Module surface re-exports for tests and downstream imports ---------
 # The split into vp_cli/vp_transcribe/vp_audio/vp_device/vp_keymap/vp_inject
 # keeps this module focused on runtime orchestration. The names below are
 # re-exported so existing imports (`from voice_pi import _resolve_device`,
 # tests' `voice_pi.build_arg_parser`, etc.) continue to work unchanged.
-from vp_audio import (  # noqa: E402
-    MIN_INPUT_DBFS, MIN_INPUT_SNR_DB, TARGET_DBFS,
-    _boost_quiet, _find_arecord_device, _looks_like_speech, _noise_snr,
-)
 from vp_cli import (  # noqa: E402
-    BEAM_SIZE, DEVICE, INJECT_MODE, KEY, LANG, MODEL_NAME, QUIT_COUNT,
-    QUIT_WINDOW_MS, VALID_INJECT_MODES,
+    DEVICE, INJECT_MODE, KEY, LANG, MODEL_NAME, QUIT_COUNT, QUIT_WINDOW_MS,
+    VALID_INJECT_MODES,
     _print_effective_config, build_arg_parser,
 )
 from vp_device import VALID_DEVICES, _resolve_device  # noqa: E402
@@ -107,14 +100,59 @@ from vp_inject import InjectMixin  # noqa: E402
 from vp_keymap import (  # noqa: E402
     _LANG_TO_XKB, _LAYOUT_KEYCODES, _build_ydotool_ops, _detect_xkb_layout,
 )
-from vp_transcribe import (  # noqa: E402
-    CONTEXT_MIN_SECONDS,
-    HALLUCINATIONS as _HALLUCINATIONS,
-    INITIAL_PROMPT, SR, TEMPERATURES, _transcribe, is_hallucination,
-)
+from vp_version import VERSION  # noqa: E402
 
 
 _ARECORD_DEVICE: str | None = None  # set once at startup
+
+_LAZY_EXPORTS = {
+    "vp_audio": (
+        "MIN_INPUT_DBFS", "MIN_INPUT_SNR_DB", "TARGET_DBFS",
+        "_boost_quiet", "_find_arecord_device", "_looks_like_speech",
+        "_noise_snr",
+    ),
+    "vp_transcribe": (
+        "BEAM_SIZE", "CONTEXT_MIN_SECONDS", "HALLUCINATIONS",
+        "INITIAL_PROMPT", "SR", "TEMPERATURES", "_transcribe",
+        "is_hallucination",
+    ),
+}
+_EXPORT_ALIASES = {"_HALLUCINATIONS": ("vp_transcribe", "HALLUCINATIONS")}
+
+
+def __getattr__(name: str):
+    if name in _EXPORT_ALIASES:
+        mod_name, attr = _EXPORT_ALIASES[name]
+    else:
+        for candidate, names in _LAZY_EXPORTS.items():
+            if name in names:
+                mod_name, attr = candidate, name
+                break
+        else:
+            raise AttributeError(name)
+    module = __import__(mod_name, fromlist=[attr])
+    value = getattr(module, attr)
+    globals()[name] = value
+    return value
+
+
+def _load_runtime_modules() -> None:
+    global np
+    global MIN_INPUT_DBFS, MIN_INPUT_SNR_DB, TARGET_DBFS
+    global _boost_quiet, _find_arecord_device, _looks_like_speech, _noise_snr
+    global BEAM_SIZE, CONTEXT_MIN_SECONDS, _HALLUCINATIONS, INITIAL_PROMPT
+    global SR, TEMPERATURES, _transcribe, is_hallucination
+
+    import numpy as np  # noqa: F401
+    from vp_audio import (
+        MIN_INPUT_DBFS, MIN_INPUT_SNR_DB, TARGET_DBFS,
+        _boost_quiet, _find_arecord_device, _looks_like_speech, _noise_snr,
+    )
+    from vp_transcribe import (
+        BEAM_SIZE, CONTEXT_MIN_SECONDS,
+        HALLUCINATIONS as _HALLUCINATIONS,
+        INITIAL_PROMPT, SR, TEMPERATURES, _transcribe, is_hallucination,
+    )
 
 
 class Dictate(InjectMixin):
@@ -123,12 +161,13 @@ class Dictate(InjectMixin):
         global _ARECORD_DEVICE
         self.model = model
         self.key = key
-        self.mode = mode  # "type" | "paste" | "print"
+        self.mode = mode  # "auto" | "type" | "paste" | "print"
         self.lang = lang  # ISO code, or None for auto-detect
         self.frames: list[np.ndarray] = []
         self.recording = False
         self._stream = None
         self._arecord_proc = None
+        from pynput import keyboard
         self._kb = keyboard.Controller()
         self._inject_target_xwin: str | None = None   # XID captured at record start
         self._inject_target_title: str | None = None  # window title for debug log
@@ -315,6 +354,7 @@ class Dictate(InjectMixin):
             return
 
         # --- pynput fallback (X11 / Windows / macOS) ---
+        from pynput import keyboard
         targets = set()
         for kn in key_names:
             k = getattr(keyboard.Key, kn, None)
@@ -362,8 +402,7 @@ class Dictate(InjectMixin):
         ln = keyboard.Listener(on_press=on_press, on_release=on_release)
         ln.start()
         try:
-            while ln.running:
-                time.sleep(0.2)
+            ln.join()
         except KeyboardInterrupt:
             pass
         finally:
@@ -372,6 +411,8 @@ class Dictate(InjectMixin):
 
 
 if __name__ == "__main__":
+    if not os.environ.get("VOICEPI_LAUNCHER_PRINTED_VERSION"):
+        print(f"whisper-dictate {VERSION}", flush=True)
     ap = build_arg_parser()
     a = ap.parse_args()
     lang = None if (a.autodetect or not a.lang) else a.lang
@@ -386,6 +427,8 @@ if __name__ == "__main__":
         dev, ctype = _resolve_device(a.device)
     except ValueError as e:
         ap.error(str(e))
+
+    _load_runtime_modules()
 
     if (os.environ.get("VOICEPI_DEBUG") or "").strip().lower() not in (
             "", "0", "false", "no", "off"):

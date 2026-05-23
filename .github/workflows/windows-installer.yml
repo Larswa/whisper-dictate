@@ -2,7 +2,7 @@ name: windows-installer
 
 # Triggers after the main release workflow creates the GitHub Release.
 # Only builds and submits to winget when Windows-relevant files changed.
-# Windows-relevant: voice_pi.py, setup.cmd/ps1, requirements-*.txt, installer/
+# Windows-relevant: voice_pi.py, vp_*.py, setup.cmd/ps1, requirements-*.txt, scripts/, installer/
 
 on:
   release:
@@ -49,8 +49,9 @@ jobs:
             exit 0
           fi
           changed=$(git diff --name-only "$prev" HEAD -- \
-            voice_pi.py setup.cmd setup.ps1 \
+            voice_pi.py 'vp_*.py' setup.cmd setup.ps1 \
             requirements-cpu.txt requirements-gpu.txt \
+            scripts/ \
             installer/)
           if [ -n "$changed" ]; then
             echo "changed=true"  >> "$GITHUB_OUTPUT"
@@ -71,6 +72,7 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ env.TAG }}" -replace '^v',''
+          Set-Content VERSION $version -Encoding ascii
           $iscc    = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           $outDir  = "$PWD\Output"
           New-Item -ItemType Directory -Force $outDir | Out-Null

@@ -21,10 +21,10 @@ Unzip, then from the `whisper-dictate/` folder:
 
 The launcher is idempotent and self-contained: first run installs Python/deps into a machine-local venv, downloads the model, and starts; later runs just start. Hold **Right Ctrl**, speak, release. Press **Esc** (or Ctrl+C) to quit.
 
-Defaults to the fastest model (`large-v3-turbo`) and `--paste` injection on every variant. `--device auto` picks the NVIDIA GPU if present, else CPU.
+Defaults to the fastest model (`large-v3-turbo`) and `VOICEPI_INJECT_MODE=auto`: direct typing for most targets, clipboard paste for known fragile Windows terminal targets. `--device auto` picks the NVIDIA GPU if present, else CPU.
 
 ## Known limitations (honest)
 
 - **AMD GPU is not accelerated.** faster-whisper/ctranslate2 only use NVIDIA. The AMD bundle is the CPU build — it does not use the AMD GPU. (GPU accel on AMD would need a different engine, e.g. whisper.cpp + Vulkan — not included.)
 - **CPU is slower** (~3–8 s/utterance with turbo) — that's why turbo is the default there.
-- **Linux + Wayland:** global hotkey + auto-typing (pynput) are X11 features; GNOME/Wayland blocks them for unprivileged apps, so push-to-talk / auto-typing may not work out of the box. The venv/model/transcription work fine. Workarounds: log in as "Ubuntu on Xorg", or use `--no-type`. A proper Wayland path (evdev + ydotool) is a planned follow-up.
+- **Linux + Wayland:** global hotkeys use evdev and text injection uses ydotool. The user must be in the `input` group for global hotkeys, and supported XKB layouts are listed in the README.

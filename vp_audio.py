@@ -7,7 +7,6 @@ must keep those green unchanged.
 from __future__ import annotations
 
 import os
-import time
 
 import numpy as np
 
@@ -85,11 +84,15 @@ def _find_arecord_device() -> str | None:
         return None
     for dev in ("pipewire", "default"):
         try:
-            # Start without -d (duration), immediately SIGTERM after 0.3s
+            # Start without -d (duration), then treat "still running after
+            # 0.3s" as evidence that the device opened successfully.
             p = subprocess.Popen(
                 ["arecord", "-D", dev, "-f", "S16_LE", "-r", "16000", "-"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-            time.sleep(0.3)
+            try:
+                p.wait(timeout=0.3)
+            except subprocess.TimeoutExpired:
+                pass
             p.send_signal(signal.SIGTERM)
             p.wait(timeout=2)
             stderr = p.stderr.read().decode(errors="replace")

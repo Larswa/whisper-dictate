@@ -16,8 +16,8 @@
 #
 # Run it (PowerShell):  powershell -ExecutionPolicy Bypass -File setup.ps1
 # Any args pass straight to voice_pi.py, e.g. ... -File setup.ps1 --lang de
-# With no args it defaults to:  --paste   (model defaults to the
-# fastest, large-v3-turbo, in voice_pi.py).
+# With no args it uses voice_pi.py defaults (auto injection strategy,
+# fastest model large-v3-turbo).
 # Stop the running tool by pressing Esc (or Ctrl+C) - frees GPU VRAM.
 # =====================================================================
 $ErrorActionPreference = 'Stop'
@@ -26,23 +26,20 @@ $venv   = Join-Path $env:USERPROFILE 'voice-pi-venv'
 $venvPy = Join-Path $venv 'Scripts\python.exe'
 $app    = Join-Path $here 'voice_pi.py'
 $reqStamp = Join-Path $venv '.requirements.sha256'
+$versionFile = Join-Path $here 'VERSION'
+$version = if (Test-Path $versionFile) {
+    (Get-Content $versionFile -TotalCount 1).Trim()
+} elseif (Get-Command git -ErrorAction SilentlyContinue) {
+    $gitVersion = (& git -C $here describe --tags --always --dirty 2>$null)
+    if ([string]::IsNullOrWhiteSpace($gitVersion)) { 'dev' } else { $gitVersion.TrimStart('v') }
+} else {
+    'dev'
+}
+Write-Host "whisper-dictate $version"
+$env:VOICEPI_LAUNCHER_PRINTED_VERSION = '1'
 
-# Default launch args if the user passed none.
-#
-# Historically we forced --paste here (clipboard injection was more
-# reliable than direct typing for special chars on Windows). With v0.2.34
-# the VOICEPI_INJECT_MODE env var was added — and an explicit --paste here
-# silently OVERRIDES it (CLI beats env in argparse), making the env var
-# useless from the Start-menu shortcut.
-#
-# Fix: only inject the historical --paste fallback when the user has NOT
-# set VOICEPI_INJECT_MODE. If they set it (to type/paste/print), pass no
-# args so voice_pi.py honours the env. Preserves backward compatibility
-# for existing users who never set the env.
 [string[]]$runArgs = if ($args.Count -gt 0) {
     $args
-} elseif ([string]::IsNullOrWhiteSpace($env:VOICEPI_INJECT_MODE)) {
-    @('--paste')
 } else {
     @()
 }
