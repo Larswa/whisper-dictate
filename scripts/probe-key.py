@@ -12,6 +12,16 @@ non-trigger. Common gotchas this catches:
   * Multimedia keys eaten by OEM software before reaching pynput
   * Chords like ctrl_r+space being filtered by IMEs / IntelliSense
 
+Hard-fail gotchas (the probe pre-warns BEFORE you press anything):
+
+  * `pause`/`break` on Windows: pynput sees the keypress, but the
+    Windows console interprets Pause as CTRL_BREAK_EVENT and aborts
+    the foreground process (MKL Fortran runtime: `forrtl: error 200`).
+    Recording starts, then voice_pi.py crashes mid-utterance. Use `f9`.
+  * `caps_lock`/`num_lock`/`scroll_lock` on Windows: stateful toggle
+    keys. Only the press event fires reliably; release-on-hold is
+    unreliable. Breaks the hold-to-talk model. Use a non-toggle key.
+
 Usage:
   python scripts/probe-key.py                    # passive: log EVERY key event
   python scripts/probe-key.py pause              # active: confirm Pause arrives
@@ -84,9 +94,31 @@ def main(argv: list[str]) -> int:
                   file=sys.stderr)
             return 3
 
+    # Keys that "work" at the pynput layer but fail in voice_pi.py for
+    # reasons the probe can't physically test (console signal handling,
+    # stateful toggles). Hard-warn so the user doesn't get a false OK.
+    HARD_FAIL = {
+        "pause": ("Windows console interprets Pause as CTRL_BREAK_EVENT "
+                  "and aborts the foreground process. pynput sees the "
+                  "press, but voice_pi.py crashes mid-utterance with "
+                  "'forrtl: error 200'. Use f9 instead."),
+        "caps_lock": ("Stateful toggle - on Windows the press fires once "
+                      "but the release-on-hold is unreliable. Breaks the "
+                      "hold-to-talk model. Use f9 / shift_r+ctrl_r."),
+        "num_lock": ("Stateful toggle - same problem as caps_lock."),
+        "scroll_lock": ("Stateful toggle - same problem as caps_lock."),
+    }
+
     targets = None
     if chord_spec:
         names = _parse(chord_spec)
+        # Pre-warn before the listener starts so the user can abort
+        for n in names:
+            if n in HARD_FAIL:
+                print(f"!! WARNING: '{n}' is a known-bad VOICEPI_KEY:")
+                print(f"   {HARD_FAIL[n]}")
+                print(f"   This probe may still report 'OK', but the "
+                      f"real app will fail.\n")
         targets = {_resolve(n) for n in names}
         print(f"probing chord [{chord_spec}] for {duration:.0f}s - "
               f"hold all {len(targets)} key(s) together")

@@ -27,9 +27,25 @@ $venvPy = Join-Path $venv 'Scripts\python.exe'
 $app    = Join-Path $here 'voice_pi.py'
 $reqStamp = Join-Path $venv '.requirements.sha256'
 
-# Default launch args if the user passed none (turbo is the model
-# default inside voice_pi.py, so --paste is enough).
-[string[]]$runArgs = if ($args.Count -gt 0) { $args } else { @('--paste') }
+# Default launch args if the user passed none.
+#
+# Historically we forced --paste here (clipboard injection was more
+# reliable than direct typing for special chars on Windows). With v0.2.34
+# the VOICEPI_INJECT_MODE env var was added — and an explicit --paste here
+# silently OVERRIDES it (CLI beats env in argparse), making the env var
+# useless from the Start-menu shortcut.
+#
+# Fix: only inject the historical --paste fallback when the user has NOT
+# set VOICEPI_INJECT_MODE. If they set it (to type/paste/print), pass no
+# args so voice_pi.py honours the env. Preserves backward compatibility
+# for existing users who never set the env.
+[string[]]$runArgs = if ($args.Count -gt 0) {
+    $args
+} elseif ([string]::IsNullOrWhiteSpace($env:VOICEPI_INJECT_MODE)) {
+    @('--paste')
+} else {
+    @()
+}
 
 function Test-WantsCuda([string[]]$argv) {
   $envDevice = if ($env:VOICEPI_DEVICE) { $env:VOICEPI_DEVICE.ToLowerInvariant() } else { '' }
