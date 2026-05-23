@@ -15,36 +15,6 @@ from pynput import keyboard
 from vp_keymap import _build_ydotool_ops
 
 
-def _type_interval_seconds() -> float:
-    # VOICEPI_TYPE_INTERVAL_MS: per-key delay in milliseconds when injecting
-    # with pynput's Controller.type(). pynput's default is 0 (no delay,
-    # ~1000+ keys/sec) which can drop individual keystrokes (typically
-    # spaces) on terminals whose input buffer cannot absorb that rate —
-    # observed reliably on Windows Terminal / ConPTY-based shells with
-    # any pynput 1.8.x release. Default 5 ms (~200 keys/sec) is fast
-    # enough to feel instant for humans but slow enough that terminals
-    # land every event. Set "0" for the legacy max-speed behaviour.
-    try:
-        return max(0.0, float(os.environ.get("VOICEPI_TYPE_INTERVAL_MS", "5"))) / 1000.0
-    except ValueError:
-        return 0.005
-
-
-TYPE_INTERVAL = _type_interval_seconds()
-
-
-def _type_slow(controller, text: str, interval: float) -> None:
-    # Inject `text` one character at a time with `interval` seconds between
-    # keypresses. interval == 0 falls back to controller.type() which is
-    # pynput's batched fast path.
-    if interval <= 0:
-        controller.type(text)
-        return
-    for ch in text:
-        controller.type(ch)
-        time.sleep(interval)
-
-
 class InjectMixin:
     def _capture_target_window(self):
         # Capture the active window at the moment PTT is pressed.
@@ -123,8 +93,7 @@ class InjectMixin:
         r = subprocess.run(["systemctl", "--user", "start", "ydotoold.service"],
                            capture_output=True)
         if r.returncode == 0:
-            time.sleep(0.8)
-            if subprocess.run(["pgrep", "-x", "ydotoold"], capture_output=True).returncode == 0:
+            if self._wait_for_ydotoold():
                 print("[inject] ydotoold startet via systemd", flush=True)
                 return
         # Fallback: start ydotoold direkte. NB: den autoritative kilde er
@@ -139,8 +108,18 @@ class InjectMixin:
                          stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL,
                          env=env)
-        time.sleep(0.5)
+        self._wait_for_ydotoold()
         print(f"[inject] ydotoold startet (XKB={self._xkb_layout or '?'})", flush=True)
+
+    def _wait_for_ydotoold(self, timeout: float = 1.0) -> bool:
+        import subprocess
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if subprocess.run(["pgrep", "-x", "ydotoold"],
+                              capture_output=True).returncode == 0:
+                return True
+            time.sleep(0.05)
+        return False
 
     def _try_ydotool(self, *args: str) -> bool:
         import subprocess, shutil
@@ -163,8 +142,6 @@ class InjectMixin:
             return False
 
     def _inject(self, text: str):
-        # Settle: let key-up events reach the compositor before injecting.
-        time.sleep(0.4)
         if self.mode == "print":
             print(f"  (heard) {text}", flush=True)
             return
@@ -184,7 +161,6 @@ class InjectMixin:
         target = self._inject_target_title
         if refocused:
             print(f'[inject] → "{preview}"  (refocused: {target})', flush=True)
-            time.sleep(0.1)
         elif target:
             print(f'[inject] → "{preview}"  (target: {target})', flush=True)
         else:
@@ -198,7 +174,7 @@ class InjectMixin:
             print(f"[inject] ydotool (direkte)", flush=True)
             if not self._wayland_type(text):
                 print("[inject] ydotool fejlede — fallback pynput", flush=True)
-                _type_slow(self._kb, text, TYPE_INTERVAL)
+                self._kb.type(text)
             return
 
         # X11 / Windows / macOS: paste via clipboard or type per --paste flag.
@@ -210,4 +186,4 @@ class InjectMixin:
             self._kb.release("v")
             self._kb.release(keyboard.Key.ctrl)
             return
-        _type_slow(self._kb, text, TYPE_INTERVAL)
+        self._kb.type(text)

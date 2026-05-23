@@ -1,0 +1,14 @@
+# Repo-local Codex profile for whisper-dictate.
+#
+# This is intentionally permissive for local development in this trusted repo.
+# It documents the expected posture for new sessions, though the active runtime
+# still decides which config files it loads and which global safety rules apply.
+
+sandbox_mode = "danger-full-access"
+approval_policy = "never"
+
+[projects.'d:\source\whisper-dictate']
+trust_level = "trusted"
+
+[windows]
+sandbox = "elevated"
