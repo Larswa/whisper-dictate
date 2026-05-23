@@ -10,6 +10,6 @@ nvidia-cublas-cu12
 nvidia-cudnn-cu12==9.*
 
 # Mic capture + hotkey + injection.
-sounddevice
-pynput
-pyperclip                 # --paste mode
+sounddevice>=0.4,<0.6
+pynput>=1.7,<2.0
+pyperclip>=1.8,<2.0       # --paste mode

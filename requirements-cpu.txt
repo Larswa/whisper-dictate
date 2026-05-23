@@ -9,11 +9,11 @@ numpy<2.2                 # ctranslate2 / onnxruntime ABI constraint
 # Mic capture + hotkey + injection. On Linux: sounddevice needs the
 # system PortAudio lib (libportaudio2); pyperclip needs a clipboard
 # tool (wl-clipboard on Wayland, xclip/xsel on X11). See README.
-sounddevice
-pynput
-pyperclip                 # --paste mode (required on Wayland)
+sounddevice>=0.4,<0.6
+pynput>=1.7,<2.0
+pyperclip>=1.8,<2.0       # --paste mode (required on Wayland)
 
 # Wayland (Ubuntu 24.04+): evdev enables global hotkeys by reading
 # /dev/input/event* directly (requires the user to be in the 'input'
 # group — see README).
-evdev; sys_platform == "linux"
+evdev>=1.6,<2.0; sys_platform == "linux"
