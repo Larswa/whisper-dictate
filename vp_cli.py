@@ -1,4 +1,4 @@
-"""CLI surface for voice-pi: argparse + the VOICEPI_DEBUG settings dump.
+"""CLI surface for whisper-dictate: argparse + the VOICEPI_DEBUG settings dump.
 
 Extracted from voice_pi.py so the main module can focus on the runtime
 orchestration. All defaults stay env-var-driven (VOICEPI_KEY, VOICEPI_MODEL,

@@ -106,7 +106,7 @@ $venvOk = (Test-MsvcPy312 $venvPy) -and
           $(& $venvPy -c "import faster_whisper, numpy, sounddevice, pynput" 2>$null; $LASTEXITCODE -eq 0)
 
 if (-not $venvOk) {
-  Write-Host "Setting up voice-pi (one-time on this machine)..." -ForegroundColor Cyan
+  Write-Host "Setting up whisper-dictate (one-time on this machine)..." -ForegroundColor Cyan
   Write-Host "Requirements: $([System.IO.Path]::GetFileName($req))" -ForegroundColor Cyan
 
   # --- 2. ensure an official MSVC CPython 3.12 ---
@@ -137,6 +137,6 @@ if (-not $venvOk) {
 }
 
 # --- 4. launch (first run also downloads the model, ~1.5-3 GB once) ---
-Write-Host "Starting voice-pi - press Esc (or Ctrl+C) to stop." -ForegroundColor Cyan
+Write-Host "Starting whisper-dictate - press Esc (or Ctrl+C) to stop." -ForegroundColor Cyan
 Set-Location $here
 & $venvPy $app $runArgs

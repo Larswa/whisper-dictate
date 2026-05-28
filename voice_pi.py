@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""voice-pi — all-in-one push-to-talk DICTATION.
+r"""whisper-dictate — all-in-one push-to-talk dictation.
 
 Speak prompts instead of typing them. Hold the hotkey, speak softly,
 release — the transcribed text is injected into whatever window has
@@ -348,7 +348,7 @@ class Dictate(InjectMixin):
         pressed: set[int] = set()
         recording = False
 
-        print(f"voice-pi dictation [lang={self.lang or 'auto'}] (evdev). Hold "
+        print(f"whisper-dictate [lang={self.lang or 'auto'}] (evdev). Hold "
               f"[{self.key}] to talk. Ctrl+C to quit.", flush=True)
 
         try:
@@ -422,7 +422,7 @@ class Dictate(InjectMixin):
         esc_last = 0.0
 
         quit_hint = f"{QUIT_COUNT}× Esc or Ctrl+C" if QUIT_COUNT > 0 else "Ctrl+C"
-        print(f"voice-pi dictation [lang={self.lang or 'auto'}] (pynput). Hold "
+        print(f"whisper-dictate [lang={self.lang or 'auto'}] (pynput). Hold "
               f"[{self.key}] to talk. {quit_hint} to quit.", flush=True)
 
         def on_press(k):
