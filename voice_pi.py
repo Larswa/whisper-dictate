@@ -278,6 +278,7 @@ class Dictate(InjectMixin):
         event = base_event(
             event="utterance",
             text=text,
+            raw_text=result.raw_text or text,
             text_preview=compact_text(text),
             text_chars=len(text),
             recording_s=recording_s,
@@ -298,6 +299,8 @@ class Dictate(InjectMixin):
             target_title=getattr(self, "_inject_target_title", None),
             target_process=getattr(self, "_inject_target_process", None),
             segments=result.segments,
+            dictionary_terms=result.dictionary_terms,
+            dictionary_replacements=result.dictionary_replacements,
         )
         append_jsonl(self.metrics_jsonl, event)
         if self.json_output:

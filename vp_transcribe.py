@@ -15,6 +15,7 @@ from typing import Any
 import numpy as np
 
 from vp_audio import _boost_quiet, _looks_like_speech
+from vp_dictionary import DICTIONARY
 
 SR = 16000
 
@@ -63,6 +64,7 @@ STT_DEBUG = (os.environ.get("VOICEPI_STT_DEBUG") or "").strip().lower() not in (
 @dataclass
 class TranscribeResult:
     text: str
+    raw_text: str = ""
     duration_s: float = 0.0
     post_boost_dbfs: float | None = None
     compute_s: float = 0.0
@@ -71,6 +73,8 @@ class TranscribeResult:
     language_probability: float | None = None
     segments: list[dict[str, Any]] = field(default_factory=list)
     gate: str = ""
+    dictionary_terms: list[str] = field(default_factory=list)
+    dictionary_replacements: list[dict[str, object]] = field(default_factory=list)
 
 # Whisper hallucinerer disse sætninger på kort/stille lyd — ignorer dem.
 HALLUCINATIONS: frozenset[str] = frozenset({
@@ -132,10 +136,11 @@ def _transcribe_detail(model, pcm: np.ndarray, lang: str | None) -> TranscribeRe
     in_dbfs = 20 * np.log10(float(np.sqrt(np.mean(audio**2)) or 1e-9))
     use_context = CONTEXT_MIN_SECONDS > 0 and dur >= CONTEXT_MIN_SECONDS
     t0 = time.monotonic()
+    prompt = DICTIONARY.build_prompt(INITIAL_PROMPT)
     segments, info = model.transcribe(
         audio,
         language=lang,
-        initial_prompt=INITIAL_PROMPT,
+        initial_prompt=prompt,
         beam_size=BEAM_SIZE,
         temperature=TEMPERATURES,
         condition_on_previous_text=use_context,
@@ -150,7 +155,8 @@ def _transcribe_detail(model, pcm: np.ndarray, lang: str | None) -> TranscribeRe
     # carries a leading space on word boundaries (BPE tokens); strip()+
     # " ".join() drops that at segment joins -> "hørerdig". Join raw,
     # then collapse whitespace runs to one space.
-    text = re.sub(r"\s+", " ", "".join(s.text for s in segment_list)).strip()
+    raw_text = re.sub(r"\s+", " ", "".join(s.text for s in segment_list)).strip()
+    text, replacements = DICTIONARY.apply_replacements(raw_text)
     compute_s = time.monotonic() - t0
     rtf = compute_s / dur if dur > 0 else None
     seg_metrics = [_segment_metric(s) for s in segment_list]
@@ -159,8 +165,11 @@ def _transcribe_detail(model, pcm: np.ndarray, lang: str | None) -> TranscribeRe
     if STT_DEBUG:
         for i, segment in enumerate(seg_metrics, 1):
             print(f"[stt-debug] segment#{i} {segment}", flush=True)
+        if replacements:
+            print(f"[stt-debug] dictionary replacements={replacements}", flush=True)
     return TranscribeResult(
         text=text,
+        raw_text=raw_text,
         duration_s=dur,
         post_boost_dbfs=in_dbfs,
         compute_s=compute_s,
@@ -169,6 +178,8 @@ def _transcribe_detail(model, pcm: np.ndarray, lang: str | None) -> TranscribeRe
         language_probability=getattr(info, "language_probability", None),
         segments=seg_metrics,
         gate=gate,
+        dictionary_terms=DICTIONARY.prompt_terms(),
+        dictionary_replacements=replacements,
     )
 
 

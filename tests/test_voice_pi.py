@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 def load_voice_pi(cuda_devices: int = 0):
     for name in ("voice_pi", "vp_keymap", "vp_device", "vp_audio", "vp_inject",
-                 "vp_cli", "vp_transcribe",
+                 "vp_cli", "vp_transcribe", "vp_dictionary",
                  "ctranslate2", "faster_whisper", "numpy",
                  "sounddevice", "pynput", "pynput.keyboard"):
         sys.modules.pop(name, None)
@@ -50,7 +50,7 @@ def load_voice_pi_realnp():
     """Import voice_pi with the REAL numpy (for audio-DSP tests) but the
     heavy/uninstalled deps stubbed. CI installs numpy (see tests workflow)."""
     for name in ("voice_pi", "vp_keymap", "vp_device", "vp_audio", "vp_inject",
-                 "vp_cli", "vp_transcribe",
+                 "vp_cli", "vp_transcribe", "vp_dictionary",
                  "ctranslate2", "faster_whisper",
                  "sounddevice", "pynput", "pynput.keyboard"):
         sys.modules.pop(name, None)
@@ -269,6 +269,7 @@ class DebugConfigTests(unittest.TestCase):
             "VOICEPI_XKB_LAYOUT", "XKB_DEFAULT_LAYOUT",
             "VOICEPI_LANG", "VOICEPI_MODEL", "VOICEPI_DEVICE",
             "VOICEPI_KEY", "VOICEPI_INJECT_MODE",
+            "VOICEPI_DICTIONARY", "VOICEPI_DICTIONARY_ENABLED",
         )}
 
     def tearDown(self):
@@ -296,7 +297,7 @@ class DebugConfigTests(unittest.TestCase):
         self.assertIn("[debug] effective settings:", out)
         for label in ("--key", "--model", "--lang", "--device",
                       "compute_type", "beam_size", "initial_prompt",
-                      "quit", "audio thresholds", "XKB (Wayland)",
+                      "dictionary", "quit", "audio thresholds", "XKB (Wayland)",
                       "inject mode"):
             self.assertIn(label, out)
 
@@ -869,6 +870,67 @@ class TranscribeDetailTests(unittest.TestCase):
             model.kwargs["vad_parameters"]["threshold"],
             self.t.VAD_THRESHOLD,
         )
+
+
+class DictionaryTests(unittest.TestCase):
+    def setUp(self):
+        self._old = {k: os.environ.pop(k, None) for k in (
+            "VOICEPI_DICTIONARY", "VOICEPI_DICTIONARY_ENABLED",
+            "VOICEPI_DICTIONARY_MAX_TERMS", "VOICEPI_DICTIONARY_PROMPT_CHARS",
+        )}
+        sys.modules.pop("vp_dictionary", None)
+
+    def tearDown(self):
+        for k in list(self._old):
+            os.environ.pop(k, None)
+            if self._old[k] is not None:
+                os.environ[k] = self._old[k]
+        sys.modules.pop("vp_dictionary", None)
+
+    def test_json_dictionary_builds_prompt_and_replacements(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
+            f.write('{"terms":["Slack","Claude Code","Codex"],'
+                    '"replacements":{"Cloud Code":"Claude Code","code X":"Codex"}}')
+            path = f.name
+        try:
+            os.environ["VOICEPI_DICTIONARY"] = path
+            import vp_dictionary
+
+            d = vp_dictionary.DICTIONARY
+            self.assertEqual(d.prompt_terms(), ["Slack", "Claude Code", "Codex"])
+            self.assertIn("Vocabulary: Slack, Claude Code, Codex",
+                          d.build_prompt("Base prompt"))
+            text, changes = d.apply_replacements("Open Cloud Code and code X.")
+            self.assertEqual(text, "Open Claude Code and Codex.")
+            self.assertEqual(len(changes), 2)
+        finally:
+            os.remove(path)
+
+    def test_text_dictionary_supports_simple_sections(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
+            f.write("terms:\n- OpenClaw\n- GitHub Actions\n\n"
+                    "replacements:\nopen claw => OpenClaw\n")
+            path = f.name
+        try:
+            os.environ["VOICEPI_DICTIONARY"] = path
+            import vp_dictionary
+
+            d = vp_dictionary.DICTIONARY
+            self.assertIn("OpenClaw", d.terms)
+            text, _ = d.apply_replacements("start open claw")
+            self.assertEqual(text, "start OpenClaw")
+        finally:
+            os.remove(path)
+
+    def test_invalid_prompt_limits_fall_back_to_defaults(self):
+        import vp_dictionary
+
+        os.environ["VOICEPI_DICTIONARY_MAX_TERMS"] = "bogus"
+        os.environ["VOICEPI_DICTIONARY_PROMPT_CHARS"] = "bogus"
+        d = vp_dictionary.Dictionary(["Slack", "Claude Code"], {})
+        with _capture_stdout() as buf:
+            self.assertEqual(d.prompt_terms(), ["Slack", "Claude Code"])
+        self.assertIn("ignoring invalid VOICEPI_DICTIONARY_MAX_TERMS", buf.getvalue())
 
 
 if __name__ == "__main__":

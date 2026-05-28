@@ -93,6 +93,7 @@ def _print_effective_config(args, dev: str, ctype: str) -> None:
         BEAM_SIZE, CONTEXT_MIN_SECONDS, TEMPERATURES,
         VAD_MIN_SILENCE_MS, VAD_THRESHOLD,
     )
+    from vp_dictionary import DICTIONARY, _default_path
 
     rows = [
         ("--key",            f"{args.key}  (env VOICEPI_KEY={_env('VOICEPI_KEY')})"),
@@ -108,6 +109,9 @@ def _print_effective_config(args, dev: str, ctype: str) -> None:
         ("vad",              f"threshold={VAD_THRESHOLD}  "
                              f"min_silence_ms={VAD_MIN_SILENCE_MS}"),
         ("initial_prompt",   prompt_preview),
+        ("dictionary",       f"{len(DICTIONARY.terms)} terms, "
+                             f"{len(DICTIONARY.replacements)} replacements, "
+                             f"path={_env('VOICEPI_DICTIONARY') if _env('VOICEPI_DICTIONARY') != '(unset)' else _default_path()}"),
         ("quit",             f"{QUIT_COUNT}x Esc within {QUIT_WINDOW_MS}ms  "
                              f"(env VOICEPI_QUIT_COUNT={_env('VOICEPI_QUIT_COUNT')})"),
         ("audio thresholds", f"target_dbfs={TARGET_DBFS}  "

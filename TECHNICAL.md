@@ -98,9 +98,9 @@ After each accepted utterance, the runtime can emit the same structured
 event to stdout (`--json` / `VOICEPI_JSON=1`) and/or append it to a JSONL
 file (`VOICEPI_METRICS_JSONL=/path/to/file.jsonl`). The event records audio
 duration, transcription compute time, real-time factor, model/device,
-language confidence, injection strategy and target metadata. This is meant
-for comparing microphones, models and injection behaviour without scraping
-human log lines.
+language confidence, dictionary replacements, injection strategy and target
+metadata. This is meant for comparing microphones, models, vocabulary fixes
+and injection behaviour without scraping human log lines.
 
 ## Wayland text injection — why evdev keycodes
 

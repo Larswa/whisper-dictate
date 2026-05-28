@@ -1,0 +1,20 @@
+{
+  "terms": [
+    "Slack",
+    "Claude Code",
+    "Codex",
+    "OpenClaw",
+    "OpenAI",
+    "GitHub Actions",
+    "Windows Terminal",
+    "Pydantic",
+    "Kubernetes"
+  ],
+  "replacements": {
+    "Cloud Code": "Claude Code",
+    "cloud code": "Claude Code",
+    "code X": "Codex",
+    "open claw": "OpenClaw",
+    "get hub actions": "GitHub Actions"
+  }
+}

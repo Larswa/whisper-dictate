@@ -26,6 +26,7 @@ upgrade wipes them.
 | **Decode temperatures** | `VOICEPI_TEMPERATURE` | _none_ | `0.0,0.2` | CSV floats (e.g. `0.0`, `0.0,0.2,0.4`) | Whisper's fallback ladder. `0.0` locks to greedy decode = predictable output, no "creative" fallback on uncertainty. |
 | **Context for long ytringer** | `VOICEPI_CONTEXT_MIN_SECONDS` | _none_ | `0` (off) | float seconds (`0` = disabled, `5` = enable for utterances ≥ 5 s) | Pass `condition_on_previous_text=True` only when an utterance is at least this long. Helps Whisper keep word boundaries on long sentences without triggering hallucinations on short ones. |
 | **Vocabulary hint** | `VOICEPI_INITIAL_PROMPT` | _none_ | _(unset)_ | free text up to ~1024 chars | bias toward your domain words/names |
+| **Custom dictionary** | `VOICEPI_DICTIONARY` | _none_ | user config path | JSON/text file path(s) | bounded vocabulary prompt + exact smart replacements for names like `Claude Code`, `Codex`, `OpenClaw` |
 | **Push-to-talk key** | `VOICEPI_KEY` | `--key` | `ctrl_r` | pynput key name (`ctrl_r`, `alt_r`, `f9`, …) or `a+b` chord | hold-to-talk key |
 | **Inject mode** | `VOICEPI_INJECT_MODE` | `--type` / `--paste` / `--no-type` | `auto` | `auto` \| `type` \| `paste` \| `print` | auto-select injection strategy, force typing, force clipboard paste (X11/Win), or print-only |
 | **Global quit count** | `VOICEPI_QUIT_COUNT` | _none_ | `3` | integer ≥ 0 (`0` disables) | N consecutive Esc to quit (Windows/X11) |
@@ -57,6 +58,10 @@ the **GPU VRAM sizing** table further down.
 | `VOICEPI_KEY` | `ctrl_r` | pynput key name, or chord `a+b` | Hold-to-talk key. e.g. `ctrl_r`, `alt_r`, `shift_r`, `f9`, or `shift_r+ctrl_r` (hold both). Also `--key`. |
 | `VOICEPI_BEAM_SIZE` | `1` | integer ≥ 1 (typical `1`–`5`) | Beam-search width. `1` = fastest; `5` = better accuracy, 3–4× slower on CPU (cheap on GPU). Env only — no flag. |
 | `VOICEPI_INITIAL_PROMPT` | *(none)* | free text | Context/vocabulary hint biasing recognition toward your terms/names. Env only. |
+| `VOICEPI_DICTIONARY` | platform user config path | path list (`;` on Windows, `:` on Unix) | Load one or more custom dictionaries. JSON supports `terms` and `replacements`; text files support `[terms]` / `[replacements]`. Terms are appended to the Whisper prompt within the configured limits; replacements run after transcription. Env only. |
+| `VOICEPI_DICTIONARY_ENABLED` | `1` | truthy / falsey | Set `0`, `false`, `no`, or `off` to disable dictionary loading without removing the file. |
+| `VOICEPI_DICTIONARY_MAX_TERMS` | `80` | integer ≥ 0 | Maximum number of dictionary terms appended to the prompt. Keeps prompt injection bounded as the dictionary grows. |
+| `VOICEPI_DICTIONARY_PROMPT_CHARS` | `1200` | integer ≥ 0 | Maximum total characters used by dictionary terms in the prompt. |
 | `VOICEPI_INJECT_MODE` | `auto` | `auto` \| `type` \| `paste` \| `print` | Controls text output injection. `auto` types directly except for known fragile Windows terminal targets, where it uses clipboard paste. `type` always sends direct keystrokes, `paste` copies the text to the clipboard and sends paste on X11/Windows, and `print` only writes the transcription to stdout. `--type`/`--paste`/`--no-type` override this env var. |
 | `VOICEPI_QUIT_COUNT` | `3` | integer ≥ 0 | **Windows/X11 only** (pynput path). N consecutive Esc presses within `VOICEPI_QUIT_WINDOW_MS` quit the app. Default `3` avoids accidental shutdown since pynput catches Esc system-wide. Set `0` to disable global Esc-quit entirely (rely on Ctrl+C in the launcher console); set `1` for legacy single-Esc behaviour. |
 | `VOICEPI_QUIT_WINDOW_MS` | `1500` | integer ms | Time window within which the consecutive Esc presses count toward `VOICEPI_QUIT_COUNT`. Any non-Esc key press resets the counter. |
@@ -125,6 +130,7 @@ setting + the env var that supplied it:
   compute_type       float16  (env VOICEPI_COMPUTE_TYPE=float16)
   beam_size          8  (env VOICEPI_BEAM_SIZE=8)
   initial_prompt     899 chars: "Factus Consulting, TwoDay, Hetzner, konsulent..."  (env VOICEPI_INITIAL_PROMPT)
+  dictionary         14 terms, 5 replacements, path=C:\Users\me\AppData\Roaming\WhisperDictate\dictionary.json
   quit               3x Esc within 1500ms  (env VOICEPI_QUIT_COUNT=3)
   audio thresholds   target_dbfs=-20.0  min_input_dbfs=-55.0  min_snr_db=6.0
   XKB (Wayland)      VOICEPI_XKB_LAYOUT=(unset)  XKB_DEFAULT_LAYOUT=da
@@ -166,6 +172,7 @@ are the way to configure it persistently:
 setx VOICEPI_LANG da
 setx VOICEPI_BEAM_SIZE 5
 setx VOICEPI_INITIAL_PROMPT "rødgrød med fløde, FactusConsulting, whisper-dictate"
+setx VOICEPI_DICTIONARY "%APPDATA%\WhisperDictate\dictionary.json"
 setx VOICEPI_MODEL large-v3
 setx VOICEPI_DEVICE cuda
 setx VOICEPI_KEY "ctrl_l+space"
@@ -181,6 +188,30 @@ One-off via terminal (the installer put the dir on PATH):
 
 Or make your **own** shortcut whose Target is
 `%LOCALAPPDATA%\Programs\WhisperDictate\setup.cmd --key ctrl_r --lang da`
+
+### Custom dictionary
+
+Use a dictionary when product names, app names and mixed-language terms are
+too numerous for one long `VOICEPI_INITIAL_PROMPT`. On Windows, the default
+path is `%APPDATA%\WhisperDictate\dictionary.json`; on Linux/macOS it is
+`${XDG_CONFIG_HOME:-~/.config}/whisper-dictate/dictionary.json`. You can also
+point `VOICEPI_DICTIONARY` at one or more files.
+
+```json
+{
+  "terms": ["Slack", "Claude Code", "Codex", "OpenClaw", "GitHub Actions"],
+  "replacements": {
+    "Cloud Code": "Claude Code",
+    "code X": "Codex",
+    "open claw": "OpenClaw"
+  }
+}
+```
+
+Dictionary terms bias Whisper through a bounded prompt
+(`VOICEPI_DICTIONARY_MAX_TERMS`, `VOICEPI_DICTIONARY_PROMPT_CHARS`). Smart
+replacements run after transcription and are recorded in JSON/metrics output
+along with the raw text.
 
 ### Injection smoke test
 
