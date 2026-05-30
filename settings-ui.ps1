@@ -11,6 +11,30 @@ if (Get-Variable PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAct
   $global:PSNativeCommandUseErrorActionPreference = $false
 }
 
+function Stop-OldWhisperDictateProcesses {
+  try {
+    $needle = $here
+    $old = Get-CimInstance Win32_Process | Where-Object {
+      $_.ProcessId -ne $PID -and
+      $_.CommandLine -and
+      $_.CommandLine.Contains($needle) -and
+      ($_.CommandLine -match 'voice_pi\.py|settings-ui\.ps1|setup\.ps1|setup\.cmd')
+    }
+    foreach ($proc in $old) {
+      "[$(Get-Date -Format o)] stopping old whisper-dictate process $($proc.ProcessId): $($proc.Name)" |
+        Out-File -FilePath $log -Append -Encoding utf8
+      try {
+        & taskkill.exe /PID $proc.ProcessId /T /F *> $null
+      } catch {
+        Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
+      }
+    }
+  } catch {
+    "[$(Get-Date -Format o)] old process cleanup failed: $_" |
+      Out-File -FilePath $log -Append -Encoding utf8
+  }
+}
+
 function Show-LaunchError([string]$message) {
   try {
     $wshell = New-Object -ComObject WScript.Shell
@@ -22,6 +46,7 @@ function Show-LaunchError([string]$message) {
 
 try {
   "[$(Get-Date -Format o)] starting settings UI launcher" | Out-File -FilePath $log -Append -Encoding utf8
+  Stop-OldWhisperDictateProcesses
   $env:PIP_PROGRESS_BAR = 'off'
   if (-not (Test-Path $venvPy)) {
     "[$(Get-Date -Format o)] venv missing; bootstrapping with setup.ps1 --doctor" | Out-File -FilePath $log -Append -Encoding utf8

@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import os
 import locale
+import subprocess
 import sys
 from pathlib import Path
 
@@ -72,6 +73,7 @@ def run_settings_ui() -> int:
             self._runtime_proc: QProcess | None = None
             self._restart_after_stop = False
             self._quit_after_stop = False
+            self._closing = False
             self._build()
             self._load()
             if os.name == "nt" and (os.environ.get("VOICEPI_UI_AUTOSTART") or "1").lower() not in (
@@ -354,7 +356,7 @@ def run_settings_ui() -> int:
             assert self._runtime_proc is not None
             self._runtime_status.setText("Stopping")
             self._runtime_proc.terminate()
-            QTimer.singleShot(3000, self._kill_runtime_if_needed)
+            QTimer.singleShot(1000, self._kill_runtime_if_needed)
 
         def restart_runtime(self) -> None:
             self._restart_after_stop = True
@@ -365,7 +367,21 @@ def run_settings_ui() -> int:
 
         def _kill_runtime_if_needed(self) -> None:
             if self._is_runtime_running() and self._runtime_proc is not None:
-                self._append_runtime_log("[ui] runtime did not stop cleanly; killing process")
+                self._append_runtime_log("[ui] runtime did not stop cleanly; killing process tree")
+                self._kill_runtime_tree()
+
+        def _kill_runtime_tree(self) -> None:
+            if self._runtime_proc is None:
+                return
+            pid = int(self._runtime_proc.processId())
+            if os.name == "nt" and pid:
+                subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/T", "/F"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+            else:
                 self._runtime_proc.kill()
 
         def _read_runtime_output(self) -> None:
@@ -410,10 +426,23 @@ def run_settings_ui() -> int:
             self.activateWindow()
 
         def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
+            if self._closing:
+                event.accept()
+                return
+            self._closing = True
+            self._quit_after_stop = True
+            self._restart_after_stop = False
             self.hide()
+            if self._is_runtime_running():
+                self.stop_runtime()
+            else:
+                app = QApplication.instance()
+                if app is not None:
+                    app.quit()
             event.ignore()
 
         def quit_app(self) -> None:
+            self._closing = True
             self._restart_after_stop = False
             if self._is_runtime_running():
                 self._quit_after_stop = True

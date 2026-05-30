@@ -1257,6 +1257,30 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
         self.assertNotIn("powershell.exe -NoProfile", ps_script)
         self.assertNotIn("powershell.exe -NoProfile", vbs_script)
 
+    def test_settings_ui_startup_cleans_old_installed_processes(self):
+        with open("settings-ui.ps1", encoding="utf-8") as f:
+            script = f.read()
+
+        self.assertIn("function Stop-OldWhisperDictateProcesses", script)
+        self.assertIn("$_.ProcessId -ne $PID", script)
+        self.assertIn("$_.CommandLine.Contains($needle)", script)
+        self.assertIn("voice_pi\\.py|settings-ui\\.ps1|setup\\.ps1|setup\\.cmd", script)
+        self.assertIn("taskkill.exe /PID $proc.ProcessId /T /F", script)
+        self.assertIn("Stop-OldWhisperDictateProcesses", script)
+
+    def test_settings_ui_close_stops_runtime_and_quits(self):
+        with open("vp_settings_ui.py", encoding="utf-8") as f:
+            script = f.read()
+
+        self.assertIn("def closeEvent", script)
+        self.assertIn("self._quit_after_stop = True", script)
+        self.assertIn("self.stop_runtime()", script)
+        self.assertIn("app.quit()", script)
+        self.assertIn("def _kill_runtime_tree", script)
+        self.assertIn('"taskkill"', script)
+        self.assertIn('"/T"', script)
+        self.assertIn('"/F"', script)
+
     def test_settings_ui_has_single_instance_guard_and_foreground_show(self):
         with open("vp_settings_ui.py", encoding="utf-8") as f:
             script = f.read()
