@@ -149,6 +149,8 @@ def _print_effective_config(args, dev: str, ctype: str) -> None:
         ("context_min_s",    f"{CONTEXT_MIN_SECONDS}  (env VOICEPI_CONTEXT_MIN_SECONDS={_env('VOICEPI_CONTEXT_MIN_SECONDS')})"),
         ("parakeet_min_s",   f"{get_value('VOICEPI_PARAKEET_MIN_SECONDS', '1.5')}  "
                              f"(env VOICEPI_PARAKEET_MIN_SECONDS={_env('VOICEPI_PARAKEET_MIN_SECONDS')})"),
+        ("release_tail_ms",  f"{get_value('VOICEPI_RELEASE_TAIL_MS', '200')}  "
+                             f"(env VOICEPI_RELEASE_TAIL_MS={_env('VOICEPI_RELEASE_TAIL_MS')})"),
         ("vad",              f"threshold={VAD_THRESHOLD}  "
                              f"min_silence_ms={VAD_MIN_SILENCE_MS}"),
         ("initial_prompt",   prompt_preview),

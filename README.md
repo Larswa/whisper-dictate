@@ -313,6 +313,7 @@ Nix / CLI): see **[CONFIGURATION.md](CONFIGURATION.md)**. The most common knobs:
 | `VOICEPI_MIN_SNR_DB` | `6` | reject raw input without enough speech-vs-noise contrast |
 | `VOICEPI_MODEL` | `large-v3-turbo` | `large-v3` = slightly better accuracy, slower |
 | `VOICEPI_STT_BACKEND` | `whisper` | `whisper` (default faster-whisper) or `parakeet` (optional NVIDIA NeMo backend) |
+| `VOICEPI_PARAKEET_MODEL` | `nvidia/parakeet-tdt-0.6b-v3` | Parakeet model; v3 is best default for Danish/mixed Danish-English, TDT 1.1B is for pure English quality tests |
 | `VOICEPI_DEVICE` | `auto` | `cuda`/`cpu` to force; `auto` = NVIDIA if present |
 | `VOICEPI_LANG` | _(auto-detect)_ | spoken-language hint (`da`, `en`, `de`, `fr`…) |
 | `VOICEPI_KEY` | `ctrl_r` | hold-to-talk key or chord, e.g. `f9`, `alt_r`, `ctrl_l+space` |
@@ -327,6 +328,8 @@ Nix / CLI): see **[CONFIGURATION.md](CONFIGURATION.md)**. The most common knobs:
 | `VOICEPI_STT_DEBUG` | _(unset)_ | `1` → print Whisper segment metadata for debugging quality |
 | `VOICEPI_VAD_THRESHOLD` | `0.3` | Silero VAD speech threshold passed to faster-whisper |
 | `VOICEPI_VAD_MIN_SILENCE_MS` | `600` | minimum silence gap used by VAD segmentation |
+| `VOICEPI_PARAKEET_MIN_SECONDS` | `1.5` | ignore very short Parakeet captures where language detection is weak |
+| `VOICEPI_RELEASE_TAIL_MS` | `200` | keep capturing briefly after hotkey release to avoid clipping final words |
 
 Dictionary helper commands run before Whisper loads, for example
 `setup.ps1 --dictionary-status`, `setup.ps1 --dictionary-open`,
@@ -335,7 +338,10 @@ Dictionary helper commands run before Whisper loads, for example
 
 Optional Parakeet backend: install `requirements-parakeet.txt`, then set
 `VOICEPI_STT_BACKEND=parakeet`. NeMo is imported lazily, so default Whisper
-runs and `--doctor` do not need Parakeet dependencies.
+runs and `--doctor` do not need Parakeet dependencies. The UI lists only the
+practical Parakeet models: 0.6B v3 for Danish/mixed Danish-English, TDT 1.1B
+for pure English quality experiments, and 0.6B v2 as a fast English-only
+baseline.
 
 Optional PySide/Qt settings UI: on Windows, use the Start-menu
 **whisper-dictate** shortcut. It owns the dictation process, shows the runtime

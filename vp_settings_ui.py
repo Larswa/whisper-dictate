@@ -28,7 +28,7 @@ def run_settings_ui() -> int:
             QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout,
             QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox,
             QPlainTextEdit, QPushButton, QSpinBox, QDoubleSpinBox, QSystemTrayIcon,
-            QStyle, QTabWidget, QTextEdit, QVBoxLayout, QWidget,
+            QStyle, QTabWidget, QTextEdit, QToolButton, QToolTip, QVBoxLayout, QWidget,
         )
     except ImportError as exc:
         raise _missing_pyside_error() from exc
@@ -82,6 +82,19 @@ def run_settings_ui() -> int:
             if os.name == "nt" and (os.environ.get("VOICEPI_UI_AUTOSTART") or "1").lower() not in (
                 "0", "false", "no", "off"):
                 QTimer.singleShot(0, self.start_runtime)
+
+        class HelpButton(QToolButton):
+            def enterEvent(self, event) -> None:  # noqa: N802 - Qt override
+                text = self.toolTip()
+                if text:
+                    QToolTip.showText(
+                        self.mapToGlobal(self.rect().bottomRight()),
+                        text,
+                        self,
+                        self.rect(),
+                        30000,
+                    )
+                super().enterEvent(event)
 
         def _build(self) -> None:
             tabs = QTabWidget()
@@ -187,7 +200,7 @@ def run_settings_ui() -> int:
             ], editable=True), "Whisper-only model. large-v3 is most accurate; large-v3-turbo is faster.")
             self._add_help_row(
                 form, "Parakeet model", self._combo("parakeet_model", PARAKEET_MODELS, editable=True),
-                "Parakeet-only NVIDIA NeMo model. v3 is multilingual and supports Danish via automatic language detection.")
+                "Parakeet-only NVIDIA NeMo model. Use 0.6B v3 for Danish/mixed Danish-English dictation; try TDT 1.1B only for pure English quality; 0.6B v2 is a fast English-only baseline.")
             self._add_help_row(form, "Device", self._combo("device", ["auto", "cuda", "cpu"]),
                                "Compute device. Use cuda for NVIDIA GPU acceleration.")
             self._add_help_row(form, "Compute type", self._combo("compute_type", [
@@ -214,6 +227,9 @@ def run_settings_ui() -> int:
                 form, "Parakeet min seconds", self._dspin("parakeet_min_seconds", 0, 10, 0.25),
                 "Parakeet-only minimum recording length. Shorter clips are ignored because language autodetection is weaker on very short audio.")
             self._add_help_row(
+                form, "Release tail ms", self._spin("release_tail_ms", 0, 1000),
+                "Extra audio captured after you release the hotkey. Helps avoid clipped final syllables or words; 150-300 ms is usually enough.")
+            self._add_help_row(
                 form, "VAD threshold", self._dspin("vad_threshold", 0, 1, 0.05),
                 "Voice activity sensitivity. Lower catches quieter speech; higher rejects more background noise.")
             self._add_help_row(
@@ -239,12 +255,33 @@ def run_settings_ui() -> int:
         def _add_help_row(self, form: QFormLayout, label: str, control: QWidget, help_text: str) -> None:
             label_w = QLabel(label)
             label_w.setToolTip(help_text)
+            label_w.setStatusTip(help_text)
+            help_btn = self.HelpButton()
+            help_btn.setText("?")
+            help_btn.setAutoRaise(True)
+            help_btn.setToolTip(help_text)
+            help_btn.setToolTipDuration(30000)
+            help_btn.setStatusTip(help_text)
+            help_btn.clicked.connect(
+                lambda _checked=False, title=label, text=help_text:
+                    QMessageBox.information(self, title, text)
+            )
+            label_row = QWidget()
+            label_layout = QHBoxLayout()
+            label_layout.setContentsMargins(0, 0, 0, 0)
+            label_layout.addWidget(label_w)
+            label_layout.addWidget(help_btn)
+            label_layout.addStretch(1)
+            label_row.setLayout(label_layout)
+            label_row.setToolTip(help_text)
+            label_row.setStatusTip(help_text)
             control.setToolTip(help_text)
+            control.setStatusTip(help_text)
             for key, widget in self._controls.items():
                 if widget is control:
                     self._labels[key] = label_w
                     break
-            form.addRow(label_w, control)
+            form.addRow(label_row, control)
 
         def _set_control_enabled(self, key: str, enabled: bool) -> None:
             control = self._controls.get(key)
@@ -258,12 +295,15 @@ def run_settings_ui() -> int:
             backend_control = self._controls.get("stt_backend")
             backend = backend_control.currentText() if isinstance(backend_control, QComboBox) else "whisper"
             is_parakeet = backend == "parakeet"
-            for key in ("model", "lang", "beam_size", "temperature", "context_min_seconds", "initial_prompt"):
+            for key in (
+                "model", "compute_type", "lang", "beam_size", "temperature",
+                "context_min_seconds", "initial_prompt",
+            ):
                 self._set_control_enabled(key, not is_parakeet)
             for key in ("parakeet_model", "parakeet_min_seconds"):
                 self._set_control_enabled(key, is_parakeet)
             self._backend_note.setText(
-                "Parakeet is experimental and very fast on NVIDIA CUDA. It autodetects language, so Language, Whisper model, beam size, temperature and initial prompt are disabled."
+                "Parakeet is experimental and very fast on NVIDIA CUDA. It autodetects language, so Language, Whisper model, compute type, beam size, temperature and initial prompt are disabled."
                 if is_parakeet else
                 "Whisper is recommended for Danish accuracy. Parakeet settings are disabled while Whisper is selected."
             )
@@ -279,19 +319,39 @@ def run_settings_ui() -> int:
             row.addWidget(path)
             row.addWidget(browse)
             row.addWidget(open_btn)
-            form.addRow("Dictionary path", row)
-            form.addRow("Dictionary enabled", self._check("dictionary_enabled"))
-            form.addRow("Max prompt terms", self._spin("dictionary_max_terms", 0, 500))
-            form.addRow("Prompt char cap", self._spin("dictionary_prompt_chars", 0, 10000))
+            row_w = QWidget()
+            row_w.setLayout(row)
+            self._add_help_row(
+                form, "Dictionary path", row_w,
+                "JSON/text dictionary file. Terms bias Whisper within prompt limits; replacements are exact post-transcription fixes.")
+            self._add_help_row(
+                form, "Dictionary enabled", self._check("dictionary_enabled"),
+                "Turn dictionary loading on or off without deleting the file.")
+            self._add_help_row(
+                form, "Max prompt terms", self._spin("dictionary_max_terms", 0, 500),
+                "Maximum dictionary terms appended to Whisper's prompt. Keeps prompt injection bounded as the dictionary grows.")
+            self._add_help_row(
+                form, "Prompt char cap", self._spin("dictionary_prompt_chars", 0, 10000),
+                "Maximum total characters from dictionary terms used in the Whisper prompt. Replacements still run even when prompt terms are capped.")
             return self._wrap(form)
 
         def _build_output_tab(self) -> QWidget:
             form = QFormLayout()
-            form.addRow("Inject mode", self._combo("inject_mode", ["auto", "type", "paste", "print"]))
-            form.addRow("JSON stdout", self._check("json_output"))
-            form.addRow("Metrics JSONL", self._line("metrics_jsonl"))
-            form.addRow("VOICEPI_DEBUG", self._check("debug"))
-            form.addRow("VOICEPI_STT_DEBUG", self._check("stt_debug"))
+            self._add_help_row(
+                form, "Inject mode", self._combo("inject_mode", ["auto", "type", "paste", "print"]),
+                "How recognized text is delivered. Auto types normally, but uses paste for fragile Windows terminals and layout-sensitive punctuation.")
+            self._add_help_row(
+                form, "JSON stdout", self._check("json_output"),
+                "Print one structured JSON event for each accepted utterance. Useful for automation and integration testing.")
+            self._add_help_row(
+                form, "Metrics JSONL", self._line("metrics_jsonl"),
+                "Append one JSON object per utterance to this file, including timings, backend, model, language and injection metadata.")
+            self._add_help_row(
+                form, "VOICEPI_DEBUG", self._check("debug"),
+                "Print the effective startup settings before model load. Useful for verifying config/env values.")
+            self._add_help_row(
+                form, "VOICEPI_STT_DEBUG", self._check("stt_debug"),
+                "Show raw STT backend debug output. For Parakeet this also exposes otherwise hidden NeMo startup/transcribe logs.")
             return self._wrap(form)
 
         def _wrap(self, layout) -> QWidget:

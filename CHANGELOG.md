@@ -11,6 +11,22 @@ release because `release.yml` bumps in-place after the tag is pushed.
 
 ## [Unreleased]
 
+## [0.2.52] - 2026-05-30
+
+### Added
+- Windows Settings UI now has visible `?` help on Core, Quality, Dictionary and Output settings. The help opens on click and is shown explicitly on hover so it does not depend on platform tooltip timing.
+- `VOICEPI_RELEASE_TAIL_MS` live setting adds a short audio tail after hotkey release to avoid clipping final syllables/words.
+- Parakeet startup/transcription noise from NeMo is hidden by default and exposed only with `VOICEPI_STT_DEBUG=1`.
+
+### Changed
+- Parakeet model choices are trimmed to the practical options: multilingual `nvidia/parakeet-tdt-0.6b-v3`, pure-English quality `nvidia/parakeet-tdt-1.1b`, and fast English-only `nvidia/parakeet-tdt-0.6b-v2`.
+- Settings UI disables Whisper-only controls, including compute type, when Parakeet is selected.
+- Documentation now clarifies that Parakeet v3 autodetects language and does not support forcing `VOICEPI_LANG=da`.
+
+### Fixed
+- Windows injection now uses paste automatically for layout-sensitive punctuation such as English contractions on Danish keyboard layouts.
+- Parakeet/NeMo progress and training-related logs no longer clutter the normal UI runtime log.
+
 ## [0.2.41] - 2026-05-23
 
 ### Added

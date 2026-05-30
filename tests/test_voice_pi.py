@@ -1182,10 +1182,11 @@ class STTBackendTests(unittest.TestCase):
         import vp_parakeet
 
         self.assertEqual(vp_parakeet.PARAKEET_MODELS[0], vp_parakeet.DEFAULT_MODEL)
-        self.assertIn("nvidia/parakeet-tdt-0.6b-v3", vp_parakeet.PARAKEET_MODELS)
-        self.assertIn("nvidia/parakeet-tdt-1.1b", vp_parakeet.PARAKEET_MODELS)
-        self.assertIn("nvidia/parakeet-rnnt-1.1b", vp_parakeet.PARAKEET_MODELS)
-        self.assertIn("nvidia/parakeet-ctc-1.1b", vp_parakeet.PARAKEET_MODELS)
+        self.assertEqual(vp_parakeet.PARAKEET_MODELS, [
+            "nvidia/parakeet-tdt-0.6b-v3",
+            "nvidia/parakeet-tdt-1.1b",
+            "nvidia/parakeet-tdt-0.6b-v2",
+        ])
 
     def test_parakeet_suppresses_irrelevant_pydub_ffmpeg_warning(self):
         import vp_parakeet
@@ -1194,6 +1195,27 @@ class STTBackendTests(unittest.TestCase):
             script = f.read()
         self.assertIn("warnings.filterwarnings", script)
         self.assertIn("Couldn't find ffmpeg or avconv", script)
+
+    def test_parakeet_quiets_nemo_output_unless_stt_debug_is_enabled(self):
+        import vp_parakeet
+
+        with open(vp_parakeet.__file__, encoding="utf-8") as f:
+            script = f.read()
+        self.assertIn("def _nemo_output_context", script)
+        self.assertIn('os.environ.get("VOICEPI_STT_DEBUG")', script)
+        self.assertIn("contextlib.redirect_stdout", script)
+        self.assertIn("contextlib.redirect_stderr", script)
+        self.assertIn("with _nemo_output_context():", script)
+
+    def test_parakeet_model_load_and_transcribe_are_quieted(self):
+        import vp_parakeet
+
+        with open(vp_parakeet.__file__, encoding="utf-8") as f:
+            script = f.read()
+        load = script.index("self._model = nemo_asr.models.ASRModel.from_pretrained")
+        transcribe = script.index("result = self._call_transcribe(path)")
+        self.assertLess(script.rfind("with _nemo_output_context():", 0, load), load)
+        self.assertLess(script.rfind("with _nemo_output_context():", 0, transcribe), transcribe)
 
 
 class WindowsLauncherRegressionTests(unittest.TestCase):
@@ -1380,7 +1402,7 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
         self.assertIn("def _update_backend_controls", script)
         self.assertIn('"Whisper is recommended for Danish accuracy', script)
         self.assertIn('"Parakeet is experimental and very fast', script)
-        self.assertIn('"model", "lang", "beam_size", "temperature", "context_min_seconds", "initial_prompt"', script)
+        self.assertIn('"model", "compute_type", "lang", "beam_size", "temperature",', script)
         self.assertIn('"parakeet_model", "parakeet_min_seconds"', script)
 
     def test_settings_buttons_are_hidden_on_runtime_tab(self):
@@ -1397,13 +1419,25 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
             script = f.read()
 
         self.assertIn("def _add_help_row", script)
+        self.assertIn("QToolButton", script)
+        self.assertIn("QToolTip", script)
+        self.assertIn("class HelpButton(QToolButton)", script)
+        self.assertIn("def enterEvent", script)
+        self.assertIn("QToolTip.showText", script)
+        self.assertIn("self.HelpButton()", script)
+        self.assertIn('help_btn.setText("?")', script)
         self.assertIn("label_w.setToolTip(help_text)", script)
+        self.assertIn("help_btn.setToolTip(help_text)", script)
+        self.assertIn("help_btn.setToolTipDuration(30000)", script)
+        self.assertIn("help_btn.clicked.connect", script)
+        self.assertIn("QMessageBox.information(self, title, text)", script)
         self.assertIn("control.setToolTip(help_text)", script)
         for label in (
             "Beam size",
             "Temperature ladder",
             "Context min seconds",
             "Parakeet min seconds",
+            "Release tail ms",
             "VAD threshold",
             "VAD min silence ms",
             "Target dBFS",
@@ -1412,6 +1446,27 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
             "Initial prompt",
         ):
             self.assertIn(label, script)
+
+    def test_core_dictionary_and_output_tabs_have_mouseover_help(self):
+        with open("vp_settings_ui.py", encoding="utf-8") as f:
+            script = f.read()
+
+        for label in (
+            "STT backend",
+            "Parakeet model",
+            "Dictionary path",
+            "Dictionary enabled",
+            "Max prompt terms",
+            "Prompt char cap",
+            "Inject mode",
+            "JSON stdout",
+            "Metrics JSONL",
+            "VOICEPI_DEBUG",
+            "VOICEPI_STT_DEBUG",
+        ):
+            self.assertIn(label, script)
+        self.assertIn("Use 0.6B v3 for Danish/mixed Danish-English", script)
+        self.assertIn("raw STT backend debug output", script)
 
     def test_settings_ui_filters_noisy_nemo_runtime_logs(self):
         with open("vp_settings_ui.py", encoding="utf-8") as f:
@@ -1462,12 +1517,22 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
         self.assertIn("too short for Parakeet", script)
         self.assertIn("stt_backend=self.stt_backend", script)
 
+    def test_voice_pi_has_live_release_tail_padding(self):
+        with open("voice_pi.py", encoding="utf-8") as f:
+            script = f.read()
+
+        self.assertIn("self.release_tail_ms", script)
+        self.assertIn('after.get("release_tail_ms", "200")', script)
+        self.assertIn("time.sleep(tail_s)", script)
+
     def test_cli_debug_prints_parakeet_min_seconds(self):
         with open("vp_cli.py", encoding="utf-8") as f:
             script = f.read()
 
         self.assertIn("parakeet_min_s", script)
         self.assertIn("VOICEPI_PARAKEET_MIN_SECONDS", script)
+        self.assertIn("release_tail_ms", script)
+        self.assertIn("VOICEPI_RELEASE_TAIL_MS", script)
 
 
 class DictionaryTests(unittest.TestCase):

@@ -1,30 +1,21 @@
-Local push-to-talk dictation: hold a key, speak softly, release — Whisper transcribes locally and the text is injected into whatever window has focus. No cloud, nothing leaves the machine.
+Windows-focused release with the unified Settings UI, Parakeet tuning, and safer injection behavior.
 
-## Which file do I download?
+## Download
 
-| Asset | Use on | Engine |
-|---|---|---|
-| **whisper-dictate-windows-nvidia.zip** | Windows + NVIDIA GPU | CUDA (fast, ~1–2 s) |
-| **whisper-dictate-windows-cpu.zip** | Windows, no NVIDIA | CPU |
-| **whisper-dictate-windows-amd.zip** | Windows with an **AMD** GPU | CPU (AMD GPUs are **not** accelerated — see below) |
-| **whisper-dictate-linux-cpu.zip** | Ubuntu 26.04 / 24.04, no NVIDIA | CPU |
+| Asset | Use on |
+|---|---|
+| **whisper-dictate-windows-nvidia-setup-0.2.52.exe** | Windows with NVIDIA CUDA |
 
-Same code in all four — they differ only in the bundled requirements file and launcher. (windows-cpu and windows-amd are identical CPU builds; the AMD one is named so the AMD-box user grabs the obviously-right file.)
+## Highlights
 
-## Run it — one click / one command
+- Settings UI now includes clickable and hoverable `?` help on Core, Quality, Dictionary, and Output settings.
+- Added `VOICEPI_RELEASE_TAIL_MS` to keep recording briefly after hotkey release and avoid clipping final words.
+- Parakeet model dropdown is trimmed to the practical choices: multilingual v3, pure-English TDT 1.1B, and fast English-only v2.
+- Parakeet/NeMo startup and progress noise is hidden unless `VOICEPI_STT_DEBUG=1`.
+- English contractions and other layout-sensitive punctuation are injected safely on Danish Windows keyboard layouts.
 
-Unzip, then from the `whisper-dictate/` folder:
+## Notes
 
-- **Windows: double-click `setup.cmd`.** That's the whole install.
-  (CLI equivalent: `powershell -ExecutionPolicy Bypass -File setup.ps1`)
-- **Linux:** `./setup.sh`
-
-The launcher is idempotent and self-contained: first run installs Python/deps into a machine-local venv, downloads the model, and starts; later runs just start. Hold **Right Ctrl**, speak, release. Press **Esc** (or Ctrl+C) to quit.
-
-Defaults to the fastest model (`large-v3-turbo`) and `VOICEPI_INJECT_MODE=auto`: direct typing for most targets, clipboard paste for known fragile Windows terminal targets. `--device auto` picks the NVIDIA GPU if present, else CPU.
-
-## Known limitations (honest)
-
-- **AMD GPU is not accelerated.** faster-whisper/ctranslate2 only use NVIDIA. The AMD bundle is the CPU build — it does not use the AMD GPU. (GPU accel on AMD would need a different engine, e.g. whisper.cpp + Vulkan — not included.)
-- **CPU is slower** (~3–8 s/utterance with turbo) — that's why turbo is the default there.
-- **Linux + Wayland:** global hotkeys use evdev and text injection uses ydotool. The user must be in the `input` group for global hotkeys, and supported XKB layouts are listed in the README.
+- Parakeet startup can take tens of seconds on Windows because NeMo/PyTorch model restore is heavy. Once loaded, inference remains very fast.
+- `VOICEPI_LANG` is a Whisper-only language hint; Parakeet v3 autodetects language.
+- Dictionary replacements are applied after transcription for both Whisper and Parakeet.

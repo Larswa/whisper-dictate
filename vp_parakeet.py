@@ -6,6 +6,7 @@ need them.
 """
 from __future__ import annotations
 
+import contextlib
 import os
 import tempfile
 import warnings
@@ -19,15 +20,25 @@ SR = 16000
 DEFAULT_MODEL = "nvidia/parakeet-tdt-0.6b-v3"
 PARAKEET_MODELS = [
     DEFAULT_MODEL,
-    "nvidia/parakeet-tdt-0.6b-v2",
     "nvidia/parakeet-tdt-1.1b",
-    "nvidia/parakeet-tdt_ctc-1.1b",
-    "nvidia/parakeet-rnnt-1.1b",
-    "nvidia/parakeet-rnnt-0.6b",
-    "nvidia/parakeet-ctc-1.1b",
-    "nvidia/parakeet-ctc-0.6b",
+    "nvidia/parakeet-tdt-0.6b-v2",
 ]
 WHISPER_DEFAULT_MODEL = "large-v3-turbo"
+
+
+def _debug_enabled() -> bool:
+    return (os.environ.get("VOICEPI_STT_DEBUG") or "").strip().lower() not in (
+        "", "0", "false", "no", "off")
+
+
+@contextlib.contextmanager
+def _nemo_output_context():
+    if _debug_enabled():
+        yield
+        return
+    with open(os.devnull, "w", encoding="utf-8") as sink:
+        with contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
+            yield
 
 
 def resolve_parakeet_model_name(model_name: str | None = None) -> str:
@@ -123,14 +134,15 @@ class ParakeetModel:
         self.compute_type = compute_type
         if device == "cuda" and not _torch_cuda_available():
             raise _cuda_torch_error()
-        self._model = nemo_asr.models.ASRModel.from_pretrained(
-            model_name=self.model_name)
-        if device in ("cuda", "cpu") and hasattr(self._model, "to"):
-            self._model.to(device)
-        for method in ("eval", "freeze"):
-            fn = getattr(self._model, method, None)
-            if callable(fn):
-                fn()
+        with _nemo_output_context():
+            self._model = nemo_asr.models.ASRModel.from_pretrained(
+                model_name=self.model_name)
+            if device in ("cuda", "cpu") and hasattr(self._model, "to"):
+                self._model.to(device)
+            for method in ("eval", "freeze"):
+                fn = getattr(self._model, method, None)
+                if callable(fn):
+                    fn()
 
     def _call_transcribe(self, path: str):
         try:
@@ -145,7 +157,8 @@ class ParakeetModel:
     def transcribe(self, audio: np.ndarray, **_: Any):
         path = _write_wav(audio.reshape(-1).astype(np.float32))
         try:
-            result = self._call_transcribe(path)
+            with _nemo_output_context():
+                result = self._call_transcribe(path)
         finally:
             try:
                 os.remove(path)

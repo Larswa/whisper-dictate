@@ -191,6 +191,8 @@ class Dictate(InjectMixin):
         self._effective_config = effective_config()
         self.parakeet_min_seconds = float(
             self._effective_config.get("parakeet_min_seconds", "1.5"))
+        self.release_tail_ms = int(float(
+            self._effective_config.get("release_tail_ms", "200")))
         self.model_load_s = model_load_s
         self._restart_required_reported = False
         self.frames: list[np.ndarray] = []
@@ -262,6 +264,7 @@ class Dictate(InjectMixin):
         vp_transcribe.TEMPERATURES = vp_transcribe._parse_temperatures(after.get("temperature"))
         vp_transcribe.CONTEXT_MIN_SECONDS = float(after.get("context_min_seconds", "0"))
         self.parakeet_min_seconds = float(after.get("parakeet_min_seconds", "1.5"))
+        self.release_tail_ms = int(float(after.get("release_tail_ms", "200")))
         vp_transcribe.VAD_THRESHOLD = float(after.get("vad_threshold", "0.3"))
         vp_transcribe.VAD_MIN_SILENCE_MS = int(after.get("vad_min_silence_ms", "600"))
         vp_transcribe.INITIAL_PROMPT = after.get("initial_prompt") or None
@@ -314,6 +317,9 @@ class Dictate(InjectMixin):
         if not self.recording:
             return
         self._reload_live_config_if_changed()
+        tail_s = max(0, self.release_tail_ms) / 1000.0
+        if tail_s:
+            time.sleep(tail_s)
         self.recording = False
         if self._arecord_proc:
             self._arecord_proc.terminate()
