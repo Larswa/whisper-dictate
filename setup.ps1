@@ -153,9 +153,9 @@ function Test-ParakeetReady {
   return ($LASTEXITCODE -eq 0)
 }
 
-function Test-TorchCudaReady {
+function Test-ParakeetCudaReady {
   if (-not (Test-Path $venvPy)) { return $false }
-  & $venvPy -c "import sys, torch; sys.exit(0 if torch.cuda.is_available() else 1)" *> $null
+  & $venvPy -c "import sys, torch; import torchaudio; sys.exit(0 if torch.cuda.is_available() else 1)" *> $null
   return ($LASTEXITCODE -eq 0)
 }
 
@@ -227,9 +227,9 @@ if ($wantsParakeet) {
   if (-not (Test-Path $parakeetReq)) {
     throw "VOICEPI_STT_BACKEND=parakeet is configured, but requirements-parakeet.txt is missing next to setup.ps1"
   }
-  if ($wantsParakeetCuda -and -not (Test-TorchCudaReady)) {
-    Write-Host "Installing CUDA PyTorch for NVIDIA Parakeet..." -ForegroundColor Cyan
-    & $venvPy -m pip install @pipInstallArgs --upgrade torch torchaudio --index-url $torchCudaIndex
+  if ($wantsParakeetCuda -and -not (Test-ParakeetCudaReady)) {
+    Write-Host "Installing CUDA PyTorch + torchaudio for NVIDIA Parakeet..." -ForegroundColor Cyan
+    & $venvPy -m pip install @pipInstallArgs --upgrade --force-reinstall --no-deps torch torchaudio --index-url $torchCudaIndex
     if ($LASTEXITCODE -ne 0) { throw "CUDA PyTorch install failed (see error above)" }
   }
   $parakeetHash = Get-VoicePiFileHash $parakeetReq

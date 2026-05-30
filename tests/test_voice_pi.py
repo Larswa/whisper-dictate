@@ -1200,9 +1200,10 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
         with open("setup.ps1", encoding="utf-8") as f:
             script = f.read()
 
-        self.assertIn("function Test-TorchCudaReady", script)
+        self.assertIn("function Test-ParakeetCudaReady", script)
+        self.assertIn("import torchaudio", script)
         self.assertIn("https://download.pytorch.org/whl/cu121", script)
-        self.assertIn("torch torchaudio --index-url $torchCudaIndex", script)
+        self.assertIn("--force-reinstall --no-deps torch torchaudio --index-url $torchCudaIndex", script)
         self.assertNotIn("--force-reinstall torch torchaudio", script)
 
     def test_setup_propagates_voice_pi_exit_code(self):
