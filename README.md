@@ -228,8 +228,8 @@ setup.cmd --key ctrl_r --lang en
 ```
 
 Or use the Start-menu **whisper-dictate** shortcut to run dictation and settings
-from one UI. The **Terminal launcher** shortcut remains available for debugging
-or classic terminal use.
+from one UI. The **whisper-dictate Debug Terminal** shortcut remains available
+for debugging or classic terminal use.
 
 After first-time setup, launch directly:
 
@@ -395,6 +395,15 @@ The Windows `.exe` installers are built by the release workflow itself.
 After the tag is pushed, CI publishes the zip bundles, builds the versioned
 installers, uploads them to the Release, and regenerates the local winget
 manifests in this repo (used for the `winget install --manifest` install path).
+
+For a faster local Windows test loop without creating a release:
+
+```powershell
+.\scripts\build-windows-installer.ps1 -Variant nvidia -Version 0.0.0-local
+```
+
+The local installer is written to `Output\`. The script uses Inno Setup 6 and
+installs it via Chocolatey when it is missing.
 
 ## Wayland keyboard-layout testing status
 

@@ -1202,6 +1202,14 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
         self.assertIn("& $venvPy $app $runArgs", script)
         self.assertIn("exit $LASTEXITCODE", script)
 
+    def test_installer_names_debug_terminal_shortcut_clearly(self):
+        with open("installer/whisper-dictate.iss", encoding="utf-8") as f:
+            script = f.read()
+
+        self.assertIn(r"whisper-dictate Debug Terminal", script)
+        self.assertIn(r'IconFilename: "{cmd}"', script)
+        self.assertNotIn(r"Terminal launcher", script)
+
     def test_settings_ui_sets_non_empty_tray_icon(self):
         with open("vp_settings_ui.py", encoding="utf-8") as f:
             script = f.read()
@@ -1215,6 +1223,14 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
 
         self.assertIn('env.insert("PYTHONIOENCODING", "utf-8")', script)
         self.assertIn('raw.decode("utf-8")', script)
+
+    def test_settings_ui_launcher_bootstraps_before_installing_ui_deps(self):
+        with open("settings-ui.ps1", encoding="utf-8") as f:
+            script = f.read()
+
+        self.assertIn("setup.ps1') --doctor", script)
+        self.assertNotIn("setup.ps1') --settings-ui", script)
+        self.assertIn("Base setup failed with exit code", script)
 
     def test_setup_uses_utf8_output_encoding(self):
         with open("setup.ps1", encoding="utf-8") as f:

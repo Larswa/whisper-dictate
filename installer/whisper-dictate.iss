@@ -61,7 +61,7 @@ Source: "..\{#REQFILE}";               DestDir: "{app}"; DestName: "requirements
 [Icons]
 Name: "{userprograms}\whisper-dictate\whisper-dictate";    Filename: "{sys}\wscript.exe"; Parameters: """{app}\settings-ui.vbs"""; WorkingDir: "{app}"
 Name: "{userprograms}\whisper-dictate\Settings UI";        Filename: "{sys}\wscript.exe"; Parameters: """{app}\settings-ui.vbs"""; WorkingDir: "{app}"
-Name: "{userprograms}\whisper-dictate\Terminal launcher";  Filename: "{app}\setup.cmd"
+Name: "{userprograms}\whisper-dictate\whisper-dictate Debug Terminal"; Filename: "{app}\setup.cmd"; IconFilename: "{cmd}"
 Name: "{userprograms}\whisper-dictate\Uninstall";          Filename: "{uninstallexe}"
 
 [Run]
