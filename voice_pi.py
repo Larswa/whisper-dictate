@@ -113,7 +113,9 @@ from vp_keymap import (  # noqa: E402
 from vp_metrics import append_jsonl, base_event, compact_text, emit_json  # noqa: E402
 from vp_history import append_history  # noqa: E402
 from vp_version import VERSION  # noqa: E402
-from vp_config import apply_config_to_environ, config_mtime, effective_config  # noqa: E402
+from vp_config import (  # noqa: E402
+    apply_config_to_environ, config_mtime, effective_config, load_config,
+)
 
 
 _ARECORD_DEVICE: str | None = None  # set once at startup
@@ -196,6 +198,7 @@ class Dictate(InjectMixin):
             self._effective_config.get("release_tail_ms", "200")))
         self.model_load_s = model_load_s
         self._restart_required_reported = False
+        self._active_profile_name: str | None = None
         self.frames: list[np.ndarray] = []
         self.recording = False
         self._record_started = 0.0
@@ -221,14 +224,25 @@ class Dictate(InjectMixin):
         else:
             print("[audio] using sounddevice (direct ALSA)", flush=True)
 
-    def _reload_live_config_if_changed(self) -> None:
-        mt = config_mtime()
-        if mt <= self._config_mtime:
-            return
-        self._config_mtime = mt
-        apply_config_to_environ()
-        after = effective_config()
+    def _profiled_config(self, base: dict[str, str]) -> dict[str, str]:
+        from vp_profiles import apply_profile_settings
 
+        data = load_config()
+        after, profile_name = apply_profile_settings(
+            base,
+            data.get("profiles", []),
+            title=getattr(self, "_inject_target_title", None),
+            process=getattr(self, "_inject_target_process", None),
+        )
+        if profile_name != self._active_profile_name:
+            self._active_profile_name = profile_name
+            print(
+                f"[profile] active: {profile_name or 'default'}",
+                flush=True,
+            )
+        return after
+
+    def _apply_effective_config(self, after: dict[str, str]) -> None:
         restart_keys = {"stt_backend", "model", "parakeet_model", "device", "compute_type", "key"}
         changed_restart = [k for k in sorted(restart_keys) if self._effective_config.get(k) != after.get(k)]
         if changed_restart and not self._restart_required_reported:
@@ -275,6 +289,14 @@ class Dictate(InjectMixin):
         self._effective_config = after
         print("[config] reloaded live settings", flush=True)
 
+    def _reload_live_config_if_changed(self) -> None:
+        mt = config_mtime()
+        if mt <= self._config_mtime:
+            return
+        self._config_mtime = mt
+        apply_config_to_environ()
+        self._apply_effective_config(self._profiled_config(effective_config()))
+
     def _cb(self, indata, frames, t, status):
         if self.recording:
             self.frames.append(indata.copy())
@@ -294,6 +316,9 @@ class Dictate(InjectMixin):
             return
         self._reload_live_config_if_changed()
         self._capture_target_window()
+        after = self._profiled_config(effective_config())
+        if after != self._effective_config:
+            self._apply_effective_config(after)
         self.frames = []
         self.recording = True
         self._record_started = time.monotonic()
@@ -386,6 +411,7 @@ class Dictate(InjectMixin):
             inject_elapsed_ms=inject_elapsed_ms,
             target_title=getattr(self, "_inject_target_title", None),
             target_process=getattr(self, "_inject_target_process", None),
+            profile=getattr(self, "_active_profile_name", None),
             segments=result.segments,
             dictionary_terms=result.dictionary_terms,
             dictionary_replacements=result.dictionary_replacements,

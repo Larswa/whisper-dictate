@@ -11,6 +11,13 @@ release because `release.yml` bumps in-place after the tag is pushed.
 
 ## [Unreleased]
 
+## [0.2.57] - 2026-05-30
+
+### Added
+- Config-driven target profiles matched by active window title/process.
+- Profiles can override live-safe settings such as `inject_mode`, `lang`, `initial_prompt`, dictionary settings and audio thresholds for matched targets.
+- Active profile is logged and included in metrics/history events.
+
 ## [0.2.56] - 2026-05-30
 
 ### Added

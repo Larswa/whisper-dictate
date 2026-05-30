@@ -370,6 +370,12 @@ Local history stores accepted live dictations as JSONL. It is local-only,
 disabled with `VOICEPI_HISTORY_ENABLED=0`, and can be used to recover the last
 transcript if injection/focus failed.
 
+Target profiles can be added to `%APPDATA%\WhisperDictate\config.json` under a
+`profiles` array. Profiles match active window title/process substrings and
+override settings for that utterance, for example using paste mode and an
+English technical prompt in Claude Code/Codex terminals while keeping defaults
+elsewhere.
+
 Optional PySide/Qt settings UI: on Windows, use the Start-menu
 **whisper-dictate** shortcut. It owns the dictation process, shows the runtime
 log, hides dependency install progress behind the UI, and restarts dictation

@@ -18,6 +18,12 @@ installed `setup.*`/`voice_pi.py`, a clean upgrade wipes them.
 the settings UI can own your normal defaults while old `setx VOICEPI_*` values
 still work for keys that are absent from the JSON file.
 
+`config.json` can also contain target profiles. Profiles match the active
+window title/process captured when recording starts, then their `settings`
+override the normal config for that utterance. Live-safe settings apply
+immediately; restart-only settings such as backend/model/device are reported as
+requiring restart/model reload.
+
 ## Cheat sheet — every knob at a glance
 
 | Knob | Env var | CLI flag | Default | Range / options | What it does |
@@ -307,6 +313,39 @@ Manage the default dictionary without loading Whisper:
 & "$env:LOCALAPPDATA\Programs\WhisperDictate\setup.ps1" --dictionary-add "Claude Code"
 & "$env:LOCALAPPDATA\Programs\WhisperDictate\setup.ps1" --dictionary-replace "Cloud Code=Claude Code"
 ```
+
+### Target profiles
+
+Profiles live in `%APPDATA%\WhisperDictate\config.json` on Windows or
+`${XDG_CONFIG_HOME:-~/.config}/whisper-dictate/config.json` elsewhere:
+
+```json
+{
+  "profiles": [
+    {
+      "name": "AI terminal",
+      "match": {
+        "title": ["Claude Code", "Codex"],
+        "process": "WindowsTerminal"
+      },
+      "settings": {
+        "inject_mode": "paste",
+        "lang": "en",
+        "initial_prompt": "Codex, Claude Code, Kubernetes cluster, merge, deploy"
+      }
+    },
+    {
+      "name": "Slack",
+      "match": {"title": "Slack"},
+      "settings": {"inject_mode": "auto"}
+    }
+  ]
+}
+```
+
+`title` and `process` are case-insensitive substring matches; either can be a
+string or a list of strings. The first matching profile wins. Active profile is
+printed as `[profile] active: ...` and included in metrics/history events.
 
 ### Injection smoke test
 
