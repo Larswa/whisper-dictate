@@ -61,9 +61,9 @@ jobs:
             [ -f "$d/setup.sh" ] && chmod +x "$d/setup.sh"
             zip -q -r "$1" "$d"; rm -rf "$d"
           }
-          mkbundle "whisper-dictate-windows-nvidia-${VERSION}.zip" requirements-gpu.txt "setup.ps1 setup.cmd"
-          mkbundle "whisper-dictate-windows-cpu-${VERSION}.zip"    requirements-cpu.txt "setup.ps1 setup.cmd"
-          mkbundle "whisper-dictate-windows-amd-${VERSION}.zip"    requirements-cpu.txt "setup.ps1 setup.cmd"
+          mkbundle "whisper-dictate-windows-nvidia-${VERSION}.zip" requirements-gpu.txt "setup.ps1 setup.cmd settings-ui.ps1 settings-ui.vbs"
+          mkbundle "whisper-dictate-windows-cpu-${VERSION}.zip"    requirements-cpu.txt "setup.ps1 setup.cmd settings-ui.ps1 settings-ui.vbs"
+          mkbundle "whisper-dictate-windows-amd-${VERSION}.zip"    requirements-cpu.txt "setup.ps1 setup.cmd settings-ui.ps1 settings-ui.vbs"
           mkbundle "whisper-dictate-linux-cpu-${VERSION}.zip"      requirements-cpu.txt "setup.sh"
 
       - name: Generate release notes from commit messages

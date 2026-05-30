@@ -79,8 +79,45 @@ function Select-Requirements([string[]]$argv) {
   throw "no requirements file found next to setup.ps1"
 }
 
+function Get-VoicePiConfigPath {
+  if ($env:VOICEPI_CONFIG) { return [Environment]::ExpandEnvironmentVariables($env:VOICEPI_CONFIG) }
+  $base = if ($env:APPDATA) { $env:APPDATA } else { Join-Path $env:USERPROFILE 'AppData\Roaming' }
+  return (Join-Path $base 'WhisperDictate\config.json')
+}
+
+function Get-VoicePiConfigValue([string]$key) {
+  $cfg = Get-VoicePiConfigPath
+  if (-not (Test-Path $cfg)) { return $null }
+  try {
+    $data = Get-Content $cfg -Raw | ConvertFrom-Json
+    $prop = $data.PSObject.Properties[$key]
+    if ($prop -and -not [string]::IsNullOrWhiteSpace([string]$prop.Value)) {
+      return [string]$prop.Value
+    }
+  } catch {
+    Write-Warning "Could not read config $cfg: $_"
+  }
+  return $null
+}
+
+function Test-WantsParakeet {
+  $configuredBackend = Get-VoicePiConfigValue 'stt_backend'
+  if ($configuredBackend) { return ($configuredBackend.ToLowerInvariant() -eq 'parakeet') }
+  if ($env:VOICEPI_STT_BACKEND) { return ($env:VOICEPI_STT_BACKEND.ToLowerInvariant() -eq 'parakeet') }
+  return $false
+}
+
+function Test-ParakeetReady {
+  if (-not (Test-Path $venvPy)) { return $false }
+  & $venvPy -c "import nemo.collections.asr" 2>$null
+  return ($LASTEXITCODE -eq 0)
+}
+
 $req = Select-Requirements $runArgs
 $reqHash = (Get-FileHash -Algorithm SHA256 $req).Hash
+$wantsParakeet = Test-WantsParakeet
+$parakeetReq = Join-Path $here 'requirements-parakeet.txt'
+$parakeetStamp = Join-Path $venv '.requirements-parakeet.sha256'
 
 function Test-MsvcPy312($exe) {
   if (-not (Test-Path $exe)) { return $false }
@@ -134,6 +171,20 @@ if (-not $venvOk) {
   if ($LASTEXITCODE -ne 0) { throw "dependency install failed (see error above)" }
   Set-Content -Path $reqStamp -Value $reqHash -Encoding ASCII
   Write-Host "Setup complete." -ForegroundColor Green
+}
+
+if ($wantsParakeet) {
+  if (-not (Test-Path $parakeetReq)) {
+    throw "VOICEPI_STT_BACKEND=parakeet is configured, but requirements-parakeet.txt is missing next to setup.ps1"
+  }
+  $parakeetHash = (Get-FileHash -Algorithm SHA256 $parakeetReq).Hash
+  $storedParakeetHash = if (Test-Path $parakeetStamp) { (Get-Content $parakeetStamp -Raw).Trim() } else { '' }
+  if (($storedParakeetHash -ne $parakeetHash) -or -not (Test-ParakeetReady)) {
+    Write-Host "Installing optional NVIDIA Parakeet dependencies..." -ForegroundColor Cyan
+    & $venvPy -m pip install -r $parakeetReq
+    if ($LASTEXITCODE -ne 0) { throw "Parakeet dependency install failed (see error above)" }
+    Set-Content -Path $parakeetStamp -Value $parakeetHash -Encoding ASCII
+  }
 }
 
 # --- 4. launch (first run also downloads the model, ~1.5-3 GB once) ---

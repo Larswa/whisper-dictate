@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from vp_config import SETTING_BY_KEY, config_path, effective_config, load_config, save_config, touch_reload_signal
+from vp_parakeet import DEFAULT_MODEL as DEFAULT_PARAKEET_MODEL
 
 
 def _missing_pyside_error() -> RuntimeError:
@@ -170,6 +171,8 @@ def run_settings_ui() -> int:
             values = effective_config()
             if not values.get("dictionary"):
                 values["dictionary"] = str(dictionary_target_path())
+            if not values.get("parakeet_model"):
+                values["parakeet_model"] = DEFAULT_PARAKEET_MODEL
             for key, control in self._controls.items():
                 value = values.get(key, "")
                 if isinstance(control, QComboBox):
@@ -207,13 +210,18 @@ def run_settings_ui() -> int:
                     value = control.toPlainText().strip()
                 else:
                     continue
+                if key == "parakeet_model" and value == DEFAULT_PARAKEET_MODEL:
+                    continue
                 if key in SETTING_BY_KEY and value != "":
                     out[key] = value
             return out
 
         def save(self) -> None:
             data = load_config()
-            data.update(self._collect())
+            collected = self._collect()
+            if "parakeet_model" not in collected and data.get("parakeet_model") == DEFAULT_PARAKEET_MODEL:
+                data.pop("parakeet_model", None)
+            data.update(collected)
             path = save_config(data)
             ensure_dictionary_file(Path(data["dictionary"])) if data.get("dictionary") else ensure_dictionary_file()
             self.signal_reload(show=False)

@@ -12,6 +12,14 @@ from contextlib import redirect_stderr, contextmanager
 from unittest.mock import patch
 
 
+_TEST_CONFIG = os.path.join(tempfile.gettempdir(), "whisper-dictate-test-config.json")
+os.environ.setdefault("VOICEPI_CONFIG", _TEST_CONFIG)
+try:
+    os.remove(_TEST_CONFIG)
+except OSError:
+    pass
+
+
 def load_voice_pi(cuda_devices: int = 0):
     for name in ("voice_pi", "vp_keymap", "vp_device", "vp_audio", "vp_inject",
                  "vp_cli", "vp_transcribe", "vp_dictionary", "vp_parakeet",

@@ -47,6 +47,8 @@ Source: "..\voice_pi.py";        DestDir: "{app}"; Flags: ignoreversion
 Source: "..\vp_*.py";            DestDir: "{app}"; Flags: ignoreversion
 Source: "..\setup.ps1";          DestDir: "{app}"; Flags: ignoreversion
 Source: "..\setup.cmd";          DestDir: "{app}"; Flags: ignoreversion
+Source: "..\settings-ui.ps1";    DestDir: "{app}"; Flags: ignoreversion
+Source: "..\settings-ui.vbs";    DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md";          DestDir: "{app}"; Flags: ignoreversion
 Source: "..\TECHNICAL.md";       DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dictionary.example.json"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
@@ -58,6 +60,7 @@ Source: "..\{#REQFILE}";               DestDir: "{app}"; DestName: "requirements
 
 [Icons]
 Name: "{userprograms}\whisper-dictate\whisper-dictate";    Filename: "{app}\setup.cmd"
+Name: "{userprograms}\whisper-dictate\Settings UI";        Filename: "{sys}\wscript.exe"; Parameters: """{app}\settings-ui.vbs"""; WorkingDir: "{app}"
 Name: "{userprograms}\whisper-dictate\Uninstall";          Filename: "{uninstallexe}"
 
 [Run]
