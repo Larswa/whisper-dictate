@@ -2050,6 +2050,9 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(rows[0]["corpus_id"], "sample")
         self.assertTrue(rows[0]["benchmark_skipped"])
+        self.assertEqual(rows[0]["benchmark_backend_spec"], "whisper")
+        self.assertEqual(rows[0]["benchmark_backend"], "whisper")
+        self.assertIsNone(rows[0]["benchmark_model"])
         self.assertEqual(rows[0]["term_misses"], ["Codex"])
 
     def test_parser_accepts_benchmark_options(self):

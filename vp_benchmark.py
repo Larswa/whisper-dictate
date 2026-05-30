@@ -145,6 +145,11 @@ def run_benchmark(
                     event = run_one(audio_file, spec)
                     if item is not None:
                         annotate_event(event, item)
+                event.update({
+                    "benchmark_backend_spec": spec.raw,
+                    "benchmark_backend": spec.backend,
+                    "benchmark_model": spec.model,
+                })
                 results.append(event)
                 line = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
                 if sink:
