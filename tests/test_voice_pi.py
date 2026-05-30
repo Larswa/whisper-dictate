@@ -2055,6 +2055,17 @@ class BenchmarkTests(unittest.TestCase):
         self.assertIsNone(rows[0]["benchmark_model"])
         self.assertEqual(rows[0]["term_misses"], ["Codex"])
 
+    def test_record_corpus_imports_sounddevice_lazily_with_help(self):
+        with open("scripts/record-corpus.py", encoding="utf-8") as f:
+            script = f.read()
+
+        self.assertIn("def load_sounddevice", script)
+        self.assertIn("Missing recorder dependency: sounddevice", script)
+        self.assertIn("py -3.12 -m pip install", script)
+        self.assertIn("sounddevice>=0.4,<0.6", script)
+        self.assertIn("sd = load_sounddevice()", script)
+        self.assertNotIn("\nimport sounddevice as sd\n", script)
+
     def test_parser_accepts_benchmark_options(self):
         sys.modules.pop("vp_cli", None)
         import vp_cli
