@@ -25,7 +25,7 @@ except OSError:
 def load_voice_pi(cuda_devices: int = 0):
     for name in ("voice_pi", "vp_keymap", "vp_device", "vp_audio", "vp_inject",
                  "vp_cli", "vp_transcribe", "vp_dictionary", "vp_parakeet",
-                 "vp_config", "vp_privacy", "vp_settings_ui",
+                 "vp_config", "vp_privacy", "vp_postprocess", "vp_settings_ui",
                  "ctranslate2", "faster_whisper", "numpy",
                  "sounddevice", "pynput", "pynput.keyboard"):
         sys.modules.pop(name, None)
@@ -63,7 +63,7 @@ def load_voice_pi_realnp():
     heavy/uninstalled deps stubbed. CI installs numpy (see tests workflow)."""
     for name in ("voice_pi", "vp_keymap", "vp_device", "vp_audio", "vp_inject",
                  "vp_cli", "vp_transcribe", "vp_dictionary", "vp_parakeet",
-                 "vp_config", "vp_privacy", "vp_settings_ui",
+                 "vp_config", "vp_privacy", "vp_postprocess", "vp_settings_ui",
                  "ctranslate2", "faster_whisper",
                  "sounddevice", "pynput", "pynput.keyboard"):
         sys.modules.pop(name, None)
@@ -1337,6 +1337,130 @@ class PrivacyModeTests(unittest.TestCase):
         self.assertIn("VOICEPI_LOCAL_ONLY", script)
 
 
+class PostprocessTests(unittest.TestCase):
+    def setUp(self):
+        self._old = {k: os.environ.pop(k, None) for k in (
+            "VOICEPI_POST_PROCESSOR", "VOICEPI_POST_MODE", "VOICEPI_POST_MODEL",
+            "VOICEPI_POST_BASE_URL", "VOICEPI_POST_TIMEOUT_MS",
+            "VOICEPI_POST_MAX_INPUT_CHARS", "VOICEPI_POST_MAX_OUTPUT_CHARS",
+            "VOICEPI_LOCAL_ONLY",
+        )}
+        for n in ("vp_postprocess", "vp_config", "vp_privacy"):
+            sys.modules.pop(n, None)
+
+    def tearDown(self):
+        for k in self._old:
+            os.environ.pop(k, None)
+        for k, v in self._old.items():
+            if v is not None:
+                os.environ[k] = v
+        for n in ("vp_postprocess", "vp_config", "vp_privacy"):
+            sys.modules.pop(n, None)
+
+    def test_raw_mode_returns_text_unchanged(self):
+        import vp_postprocess
+
+        result = vp_postprocess.postprocess_text("keep this")
+
+        self.assertEqual(result.text, "keep this")
+        self.assertFalse(result.changed)
+        self.assertEqual(result.provider, "none")
+        self.assertEqual(result.mode, "raw")
+
+    def test_clean_mode_uses_fake_ollama_server(self):
+        import threading
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        calls = {}
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                body = self.rfile.read(int(self.headers["Content-Length"]))
+                calls["path"] = self.path
+                calls["payload"] = json.loads(body.decode("utf-8"))
+                data = json.dumps({"response": "Hello, world."}).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def log_message(self, *args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.shutdown)
+        self.addCleanup(server.server_close)
+
+        import vp_postprocess
+
+        settings = vp_postprocess.PostprocessSettings(
+            processor="ollama",
+            mode="clean",
+            model="qwen2.5:3b",
+            base_url=f"http://127.0.0.1:{server.server_port}",
+        )
+        result = vp_postprocess.postprocess_text("hello world", settings)
+
+        self.assertEqual(result.text, "Hello, world.")
+        self.assertTrue(result.changed)
+        self.assertEqual(result.model, "qwen2.5:3b")
+        self.assertEqual(calls["path"], "/api/generate")
+        self.assertEqual(calls["payload"]["model"], "qwen2.5:3b")
+        self.assertIn("Clean punctuation", calls["payload"]["prompt"])
+
+    def test_ollama_failure_falls_back_to_original_text(self):
+        import vp_postprocess
+
+        settings = vp_postprocess.PostprocessSettings(
+            processor="ollama",
+            mode="clean",
+            base_url="http://127.0.0.1:1",
+            timeout_ms=100,
+        )
+        result = vp_postprocess.postprocess_text("fallback text", settings)
+
+        self.assertEqual(result.text, "fallback text")
+        self.assertTrue(result.fallback)
+        self.assertTrue(result.error)
+
+    def test_local_only_blocks_remote_postprocess_url(self):
+        os.environ["VOICEPI_LOCAL_ONLY"] = "1"
+        import vp_postprocess
+
+        settings = vp_postprocess.PostprocessSettings(
+            processor="ollama",
+            mode="clean",
+            base_url="https://example.com",
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "VOICEPI_LOCAL_ONLY=1"):
+            vp_postprocess.validate_postprocess_settings(settings)
+
+    def test_local_only_allows_localhost_postprocess_url(self):
+        os.environ["VOICEPI_LOCAL_ONLY"] = "1"
+        import vp_postprocess
+
+        settings = vp_postprocess.PostprocessSettings(
+            processor="ollama",
+            mode="clean",
+            base_url="http://localhost:11434",
+        )
+
+        vp_postprocess.validate_postprocess_settings(settings)
+
+    def test_voice_pi_records_postprocess_metrics(self):
+        with open("voice_pi.py", encoding="utf-8") as f:
+            script = f.read()
+
+        self.assertIn("postprocess_text(text", script)
+        self.assertIn("dictionary_text=text", script)
+        self.assertIn("post_processor=post_result.provider", script)
+        self.assertIn("post_fallback=post_result.fallback", script)
+
+
 class WindowsLauncherRegressionTests(unittest.TestCase):
     def test_setup_warning_escapes_config_path_before_colon(self):
         with open("setup.ps1", encoding="utf-8") as f:
@@ -1580,12 +1704,19 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
             "Inject mode",
             "JSON stdout",
             "Metrics JSONL",
+            "Post processor",
+            "Post mode",
+            "Post model",
+            "Post base URL",
+            "Post timeout ms",
+            "Local only",
             "VOICEPI_DEBUG",
             "VOICEPI_STT_DEBUG",
         ):
             self.assertIn(label, script)
         self.assertIn("Use 0.6B v3 for Danish/mixed Danish-English", script)
         self.assertIn("raw STT backend debug output", script)
+        self.assertIn("qwen2.5:3b", script)
 
     def test_settings_ui_filters_noisy_nemo_runtime_logs(self):
         with open("vp_settings_ui.py", encoding="utf-8") as f:

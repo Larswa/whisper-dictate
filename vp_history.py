@@ -35,10 +35,13 @@ def history_enabled() -> bool:
 def _history_event(event: dict[str, Any]) -> dict[str, Any]:
     keys = (
         "ts", "event", "text", "raw_text", "text_preview", "text_chars",
+        "dictionary_text",
         "recording_s", "audio_duration_s", "compute_s", "real_time_factor",
         "language", "language_probability", "model", "stt_backend", "device",
         "compute_type", "inject_mode", "inject_strategy", "target_title",
         "target_process", "profile", "dictionary_replacements",
+        "post_processor", "post_mode", "post_model", "post_latency_ms",
+        "post_changed", "post_fallback", "post_error",
     )
     return {key: event[key] for key in keys if key in event}
 

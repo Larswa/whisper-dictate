@@ -12,6 +12,7 @@ import os
 from vp_config import apply_config_to_environ, get_value
 from vp_device import VALID_DEVICES
 from vp_privacy import apply_local_only_network_lock, local_only_enabled
+from vp_postprocess import load_postprocess_settings
 
 apply_config_to_environ()
 apply_local_only_network_lock()
@@ -115,6 +116,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--calibrate-file", metavar="PATH",
                     help="analyze an existing audio file and recommend audio "
                          "threshold settings, then exit")
+    ap.add_argument("--post-process-text", metavar="TEXT",
+                    help="run the configured local post-processor on TEXT, "
+                         "then exit")
     ap.add_argument("--history-list", nargs="?", const=10, type=int,
                     metavar="N",
                     help="print the last N local dictation history entries, "
@@ -168,6 +172,7 @@ def _print_effective_config(args, dev: str, ctype: str) -> None:
         VAD_MIN_SILENCE_MS, VAD_THRESHOLD,
     )
     from vp_dictionary import DICTIONARY, _default_path
+    post = load_postprocess_settings()
 
     rows = [
         ("--key",            f"{args.key}  (env VOICEPI_KEY={_env('VOICEPI_KEY')})"),
@@ -202,6 +207,8 @@ def _print_effective_config(args, dev: str, ctype: str) -> None:
         ("json output",      f"{getattr(args, 'json', False)}  (env VOICEPI_JSON={_env('VOICEPI_JSON')})"),
         ("metrics jsonl",    f"{_env('VOICEPI_METRICS_JSONL')}  (env VOICEPI_METRICS_JSONL)"),
         ("local only",       f"{local_only_enabled()}  (env VOICEPI_LOCAL_ONLY={_env('VOICEPI_LOCAL_ONLY')})"),
+        ("post process",     f"{post.processor}/{post.mode} model={post.model} "
+                             f"url={post.base_url} timeout_ms={post.timeout_ms}"),
         ("stt debug",        f"{_env('VOICEPI_STT_DEBUG')}  (env VOICEPI_STT_DEBUG)"),
     ]
     print("[debug] effective settings:", flush=True)

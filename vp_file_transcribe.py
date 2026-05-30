@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from vp_metrics import base_event, compact_text
+from vp_postprocess import postprocess_text
 from vp_transcribe import SR, _transcribe_detail
 
 
@@ -93,12 +94,15 @@ def transcribe_file_event(
     pcm = load_audio_file(p)
     with contextlib.redirect_stdout(sys.stderr):
         result = _transcribe_detail(model, pcm, lang)
+        post_result = postprocess_text(result.text)
+    final_text = post_result.text
     return base_event(
         event="file_transcription",
-        text=result.text,
+        text=final_text,
+        dictionary_text=result.text,
         raw_text=result.raw_text or result.text,
-        text_preview=compact_text(result.text),
-        text_chars=len(result.text),
+        text_preview=compact_text(final_text),
+        text_chars=len(final_text),
         recording_s=result.duration_s,
         audio_duration_s=result.duration_s,
         post_boost_dbfs=result.post_boost_dbfs,
@@ -115,6 +119,13 @@ def transcribe_file_event(
         segments=result.segments,
         dictionary_terms=result.dictionary_terms,
         dictionary_replacements=result.dictionary_replacements,
+        post_processor=post_result.provider,
+        post_mode=post_result.mode,
+        post_model=post_result.model,
+        post_latency_ms=post_result.latency_ms,
+        post_changed=post_result.changed,
+        post_fallback=post_result.fallback,
+        post_error=post_result.error or None,
     )
 
 

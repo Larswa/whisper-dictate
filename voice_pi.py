@@ -114,6 +114,7 @@ from vp_metrics import append_jsonl, base_event, compact_text, emit_json  # noqa
 from vp_history import append_history  # noqa: E402
 from vp_version import VERSION  # noqa: E402
 from vp_privacy import apply_local_only_network_lock  # noqa: E402
+from vp_postprocess import load_postprocess_settings, postprocess_text  # noqa: E402
 from vp_config import (  # noqa: E402
     apply_config_to_environ, config_mtime, effective_config, load_config,
 )
@@ -197,6 +198,7 @@ class Dictate(InjectMixin):
             self._effective_config.get("parakeet_min_seconds", "1.5"))
         self.release_tail_ms = int(float(
             self._effective_config.get("release_tail_ms", "200")))
+        self.postprocess_settings = load_postprocess_settings()
         self.model_load_s = model_load_s
         self._restart_required_reported = False
         self._active_profile_name: str | None = None
@@ -270,6 +272,7 @@ class Dictate(InjectMixin):
 
         import vp_audio
         import vp_dictionary
+        import vp_postprocess
         import vp_transcribe
 
         vp_audio.TARGET_DBFS = float(after.get("target_dbfs", "-20"))
@@ -287,6 +290,7 @@ class Dictate(InjectMixin):
         vp_transcribe.STT_DEBUG = (after.get("stt_debug") or "").lower() not in (
             "", "0", "false", "no", "off")
         vp_dictionary.DICTIONARY = vp_dictionary.load_dictionary()
+        self.postprocess_settings = vp_postprocess.load_postprocess_settings()
         self._effective_config = after
         print("[config] reloaded live settings", flush=True)
 
@@ -385,15 +389,23 @@ class Dictate(InjectMixin):
         if is_hallucination(text):
             print(f"  (hallucination filtreret: {text!r})", flush=True)
             return
+        post_result = postprocess_text(text, self.postprocess_settings)
+        if post_result.fallback and post_result.error:
+            print(f"[post] fallback after {post_result.latency_ms}ms: {post_result.error}", flush=True)
+        elif post_result.changed:
+            print(f"[post] {post_result.mode}/{post_result.provider} "
+                  f"{post_result.latency_ms}ms text={post_result.text!r}", flush=True)
+        final_text = post_result.text
         inject_t0 = time.monotonic()
-        self._inject(text)
+        self._inject(final_text)
         inject_elapsed_ms = int((time.monotonic() - inject_t0) * 1000)
         event = base_event(
             event="utterance",
-            text=text,
+            text=final_text,
+            dictionary_text=text,
             raw_text=result.raw_text or text,
-            text_preview=compact_text(text),
-            text_chars=len(text),
+            text_preview=compact_text(final_text),
+            text_chars=len(final_text),
             recording_s=recording_s,
             audio_duration_s=result.duration_s,
             post_boost_dbfs=result.post_boost_dbfs,
@@ -416,6 +428,13 @@ class Dictate(InjectMixin):
             segments=result.segments,
             dictionary_terms=result.dictionary_terms,
             dictionary_replacements=result.dictionary_replacements,
+            post_processor=post_result.provider,
+            post_mode=post_result.mode,
+            post_model=post_result.model,
+            post_latency_ms=post_result.latency_ms,
+            post_changed=post_result.changed,
+            post_fallback=post_result.fallback,
+            post_error=post_result.error or None,
         )
         append_jsonl(self.metrics_jsonl, event)
         try:
@@ -632,6 +651,13 @@ if __name__ == "__main__":
                 run_history_command("list", limit=a.history_list, as_json=a.json)
         except Exception as e:  # noqa: BLE001 - argparse should report cleanly
             ap.error(str(e))
+        raise SystemExit(0)
+    if a.post_process_text is not None:
+        from vp_postprocess import postprocess_text
+        result = postprocess_text(a.post_process_text)
+        if result.fallback and result.error:
+            print(f"[post] fallback: {result.error}", file=sys.stderr, flush=True)
+        print(result.text, flush=True)
         raise SystemExit(0)
     lang = None if (a.autodetect or not a.lang) else a.lang
 

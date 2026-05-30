@@ -346,6 +346,25 @@ def run_settings_ui() -> int:
             self._add_help_row(
                 form, "Metrics JSONL", self._line("metrics_jsonl"),
                 "Append one JSON object per utterance to this file, including timings, backend, model, language and injection metadata.")
+            processor = self._combo("post_processor", ["none", "ollama"])
+            processor.currentTextChanged.connect(lambda _: self._update_post_controls())
+            self._add_help_row(
+                form, "Post processor", processor,
+                "Optional second local text pass after STT and dictionary replacements. None/raw keeps current behavior.")
+            mode = self._combo("post_mode", ["raw", "clean", "prompt", "terminal", "slack", "email", "bullets"])
+            mode.currentTextChanged.connect(lambda _: self._update_post_controls())
+            self._add_help_row(
+                form, "Post mode", mode,
+                "Rewrite style for the optional second pass. Terminal mode preserves commands, paths, flags and technical terms.")
+            self._add_help_row(
+                form, "Post model", self._line("post_model"),
+                "Local Ollama model, for example qwen2.5:3b. Smaller models are safer alongside Parakeet on 10 GB GPUs.")
+            self._add_help_row(
+                form, "Post base URL", self._line("post_base_url"),
+                "Local Ollama URL. With Local only enabled this must be localhost.")
+            self._add_help_row(
+                form, "Post timeout ms", self._spin("post_timeout_ms", 100, 30000),
+                "Maximum wait for local rewrite. On timeout whisper-dictate falls back to the dictionary-final text.")
             self._add_help_row(
                 form, "Local only", self._check("local_only"),
                 "Block cloud/BYOK providers and force Hugging Face/Transformers offline mode. Local models must already be downloaded.")
@@ -397,6 +416,16 @@ def run_settings_ui() -> int:
                     control.setPlainText(str(value))
             self._status.setText(f"Config: {config_path()}")
             self._update_backend_controls()
+            self._update_post_controls()
+
+        def _update_post_controls(self) -> None:
+            processor_control = self._controls.get("post_processor")
+            mode_control = self._controls.get("post_mode")
+            processor = processor_control.currentText() if isinstance(processor_control, QComboBox) else "none"
+            mode = mode_control.currentText() if isinstance(mode_control, QComboBox) else "raw"
+            enabled = processor != "none" and mode != "raw"
+            for key in ("post_model", "post_base_url", "post_timeout_ms"):
+                self._set_control_enabled(key, enabled)
 
         def _collect(self) -> dict[str, str]:
             out: dict[str, str] = {}
