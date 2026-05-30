@@ -229,7 +229,7 @@ if ($wantsParakeet) {
   }
   if ($wantsParakeetCuda -and -not (Test-TorchCudaReady)) {
     Write-Host "Installing CUDA PyTorch for NVIDIA Parakeet..." -ForegroundColor Cyan
-    & $venvPy -m pip install @pipInstallArgs --upgrade --force-reinstall torch torchaudio --index-url $torchCudaIndex
+    & $venvPy -m pip install @pipInstallArgs --upgrade torch torchaudio --index-url $torchCudaIndex
     if ($LASTEXITCODE -ne 0) { throw "CUDA PyTorch install failed (see error above)" }
   }
   $parakeetHash = Get-VoicePiFileHash $parakeetReq
