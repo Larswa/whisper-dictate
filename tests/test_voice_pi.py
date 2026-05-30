@@ -1210,6 +1210,24 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
         self.assertIn(r'IconFilename: "{cmd}"', script)
         self.assertNotIn(r"Terminal launcher", script)
 
+    def test_installer_uses_whisper_dictate_icon_and_searchable_ui_name(self):
+        with open("installer/whisper-dictate.iss", encoding="utf-8") as f:
+            script = f.read()
+
+        self.assertIn(r"SetupIconFile=..\assets\whisper-dictate.ico", script)
+        self.assertIn(r'Source: "..\assets\whisper-dictate.ico"', script)
+        self.assertIn(r"whisper-dictate Settings UI", script)
+        self.assertIn(r'IconFilename: "{app}\whisper-dictate.ico"', script)
+        self.assertNotIn(r"\Settings UI", script)
+
+    def test_installer_creates_desktop_ui_shortcut(self):
+        with open("installer/whisper-dictate.iss", encoding="utf-8") as f:
+            script = f.read()
+
+        self.assertIn(r'Name: "{userdesktop}\whisper-dictate"', script)
+        self.assertIn(r'Filename: "{sys}\wscript.exe"', script)
+        self.assertIn(r'Parameters: """{app}\settings-ui.vbs"""', script)
+
     def test_settings_ui_sets_non_empty_tray_icon(self):
         with open("vp_settings_ui.py", encoding="utf-8") as f:
             script = f.read()
@@ -1229,10 +1247,23 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
             script = f.read()
 
         self.assertIn("QLockFile", script)
+        self.assertIn("QLocalServer", script)
+        self.assertIn("QLocalSocket", script)
         self.assertIn("settings-ui.lock", script)
+        self.assertIn("activate_existing_ui(server_name)", script)
         self.assertIn("Settings UI is already running", script)
-        self.assertIn("win.raise_()", script)
-        self.assertIn("win.activateWindow()", script)
+        self.assertIn("def show_and_activate", script)
+        self.assertIn("self.raise_()", script)
+        self.assertIn("self.activateWindow()", script)
+
+    def test_settings_ui_loads_app_icon(self):
+        with open("vp_settings_ui.py", encoding="utf-8") as f:
+            script = f.read()
+
+        self.assertIn("def load_app_icon", script)
+        self.assertIn("whisper-dictate.ico", script)
+        self.assertIn("app.setWindowIcon(icon)", script)
+        self.assertIn("win.setWindowIcon(icon)", script)
 
     def test_settings_ui_launcher_bootstraps_before_installing_ui_deps(self):
         with open("settings-ui.ps1", encoding="utf-8") as f:

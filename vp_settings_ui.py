@@ -1,6 +1,7 @@
 """Optional PySide/Qt settings UI for whisper-dictate."""
 from __future__ import annotations
 
+import hashlib
 import os
 import locale
 import sys
@@ -21,6 +22,7 @@ def run_settings_ui() -> int:
     try:
         from PySide6.QtCore import QLockFile, QProcess, QProcessEnvironment, QTimer, Qt
         from PySide6.QtGui import QAction, QIcon, QTextCursor
+        from PySide6.QtNetwork import QLocalServer, QLocalSocket
         from PySide6.QtWidgets import (
             QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout,
             QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox,
@@ -31,6 +33,30 @@ def run_settings_ui() -> int:
         raise _missing_pyside_error() from exc
 
     from vp_dictionary import dictionary_target_path, ensure_dictionary_file, open_dictionary
+
+    def activation_server_name() -> str:
+        key = str(config_path().with_name("settings-ui")).lower().encode("utf-8", errors="replace")
+        return "whisper-dictate-settings-" + hashlib.sha1(key).hexdigest()
+
+    def activate_existing_ui(server_name: str) -> bool:
+        socket = QLocalSocket()
+        socket.connectToServer(server_name)
+        if not socket.waitForConnected(500):
+            return False
+        socket.write(b"show\n")
+        socket.flush()
+        socket.waitForBytesWritten(500)
+        socket.disconnectFromServer()
+        return True
+
+    def load_app_icon(app: QApplication) -> QIcon:
+        here = Path(__file__).resolve().parent
+        for path in (here / "whisper-dictate.ico", here / "assets" / "whisper-dictate.ico"):
+            if path.exists():
+                icon = QIcon(str(path))
+                if not icon.isNull():
+                    return icon
+        return app.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
 
     class SettingsWindow(QMainWindow):
         def __init__(self):
@@ -376,6 +402,13 @@ def run_settings_ui() -> int:
                 self._restart_after_stop = False
                 QTimer.singleShot(250, self.start_runtime)
 
+        def show_and_activate(self) -> None:
+            if self.isMinimized():
+                self.setWindowState((self.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowActive)
+            self.show()
+            self.raise_()
+            self.activateWindow()
+
         def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
             self.hide()
             event.ignore()
@@ -395,9 +428,16 @@ def run_settings_ui() -> int:
     app.setQuitOnLastWindowClosed(False)
 
     lock_path = config_path().with_name("settings-ui.lock")
+    server_name = activation_server_name()
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     instance_lock = QLockFile(str(lock_path))
-    if not instance_lock.tryLock(100):
+    locked = instance_lock.tryLock(100)
+    if not locked:
+        if activate_existing_ui(server_name):
+            return 0
+        instance_lock.removeStaleLockFile()
+        locked = instance_lock.tryLock(100)
+    if not locked:
         QMessageBox.information(
             None,
             "whisper-dictate",
@@ -406,9 +446,23 @@ def run_settings_ui() -> int:
         return 0
 
     win = SettingsWindow()
-    icon = app.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+    icon = load_app_icon(app)
     if not isinstance(icon, QIcon) or icon.isNull():
         icon = win.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+    app.setWindowIcon(icon)
+    win.setWindowIcon(icon)
+    activation_server = QLocalServer(app)
+    QLocalServer.removeServer(server_name)
+
+    def handle_activation_request() -> None:
+        while activation_server.hasPendingConnections():
+            conn = activation_server.nextPendingConnection()
+            if conn is not None:
+                conn.close()
+        win.show_and_activate()
+
+    activation_server.newConnection.connect(handle_activation_request)
+    activation_server.listen(server_name)
     tray = QSystemTrayIcon(icon, app)
     tray.setToolTip("whisper-dictate")
     menu = tray.contextMenu()
@@ -427,8 +481,6 @@ def run_settings_ui() -> int:
     menu.addSeparator()
     menu.addAction(quit_action)
     tray.show()
-    win.show()
-    win.raise_()
-    win.activateWindow()
-    QTimer.singleShot(250, lambda: (win.show(), win.raise_(), win.activateWindow()))
+    win.show_and_activate()
+    QTimer.singleShot(250, win.show_and_activate)
     return int(app.exec())
