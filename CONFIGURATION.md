@@ -173,6 +173,9 @@ Passed after the launcher (`setup.cmd` / `setup.sh` / `whisper-dictate`):
 | `--doctor` | off | — | Run Linux/Wayland health checks and exit before loading Whisper. |
 | `--settings-ui` | off | — | Open the optional PySide/Qt settings UI and exit. |
 | `--transcribe-file PATH` | off | audio path | Transcribe an audio file with the selected backend/config and exit. 16-bit WAV works natively; mp3/m4a/other formats require ffmpeg. Combine with `--json` for structured output. |
+| `--benchmark-files PATH...` | off | audio paths | Run one or more files through benchmark backend specs and emit one JSONL event per file/backend. |
+| `--benchmark-backends SPEC` | current backend | CSV specs | Backend/model specs for benchmarking, e.g. `whisper:large-v3,parakeet:nvidia/parakeet-tdt-0.6b-v3`. |
+| `--benchmark-jsonl PATH` | stdout | file path | Append benchmark JSONL results to a file instead of stdout. |
 
 ## How to set them, per environment
 

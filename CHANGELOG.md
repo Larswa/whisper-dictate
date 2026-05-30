@@ -11,6 +11,13 @@ release because `release.yml` bumps in-place after the tag is pushed.
 
 ## [Unreleased]
 
+## [0.2.54] - 2026-05-30
+
+### Added
+- `--benchmark-files` command to run one or more audio files through selected backend/model specs.
+- `--benchmark-backends` accepts comma-separated specs such as `whisper:large-v3,parakeet:nvidia/parakeet-tdt-0.6b-v3`.
+- `--benchmark-jsonl` writes one structured result per file/backend, including success/failure metadata.
+
 ## [0.2.53] - 2026-05-30
 
 ### Added

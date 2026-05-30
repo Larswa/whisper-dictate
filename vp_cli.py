@@ -97,6 +97,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
                     help="transcribe an audio file with the selected backend, "
                          "then exit. 16-bit WAV works natively; mp3/m4a and "
                          "other formats require ffmpeg.")
+    ap.add_argument("--benchmark-files", nargs="+", metavar="PATH",
+                    help="run one or more audio files through benchmark "
+                         "backend specs, then exit")
+    ap.add_argument("--benchmark-backends", default=None,
+                    help="comma-separated backend specs for --benchmark-files, "
+                         "for example whisper:large-v3,parakeet")
+    ap.add_argument("--benchmark-jsonl", default=None,
+                    help="append benchmark JSONL results to this path instead "
+                         "of stdout")
     ap.add_argument("--dictionary-status", nargs=0, action=_DictionaryAction,
                     help="show dictionary paths, counts and preview, then exit")
     ap.add_argument("--dictionary-open", nargs=0, action=_DictionaryAction,

@@ -565,6 +565,17 @@ if __name__ == "__main__":
     if a.doctor:
         from vp_doctor import run_doctor
         raise SystemExit(run_doctor())
+    if a.benchmark_files:
+        from vp_benchmark import run_benchmark
+        try:
+            run_benchmark(
+                a.benchmark_files,
+                a.benchmark_backends,
+                output_jsonl=a.benchmark_jsonl,
+            )
+        except Exception as e:  # noqa: BLE001 - argparse should report cleanly
+            ap.error(str(e))
+        raise SystemExit(0)
     lang = None if (a.autodetect or not a.lang) else a.lang
 
     # Sæt XKB_DEFAULT_LAYOUT fra --lang så ydotool type og evt. auto-startet

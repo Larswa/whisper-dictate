@@ -1637,6 +1637,122 @@ class TranscribeFileTests(unittest.TestCase):
         self.assertEqual(json.loads(buf.getvalue()), event)
 
 
+class BenchmarkTests(unittest.TestCase):
+    def test_parse_backend_specs_supports_models(self):
+        import vp_benchmark
+
+        specs = vp_benchmark.parse_backend_specs(
+            "whisper:large-v3,parakeet:nvidia/parakeet-tdt-0.6b-v3")
+
+        self.assertEqual(specs[0].backend, "whisper")
+        self.assertEqual(specs[0].model, "large-v3")
+        self.assertEqual(specs[1].backend, "parakeet")
+        self.assertEqual(specs[1].model, "nvidia/parakeet-tdt-0.6b-v3")
+
+    def test_parse_backend_specs_rejects_unknown_backend(self):
+        import vp_benchmark
+
+        with self.assertRaisesRegex(ValueError, "unsupported benchmark backend"):
+            vp_benchmark.parse_backend_specs("cloud:gpt-4o-transcribe")
+
+    def test_benchmark_run_one_invokes_transcribe_file_json(self):
+        import vp_benchmark
+
+        completed = types.SimpleNamespace(
+            returncode=0,
+            stdout='{"event":"file_transcription","text":"hello"}\n',
+            stderr="",
+        )
+        with patch("vp_benchmark.subprocess.run", return_value=completed) as run:
+            event = vp_benchmark.run_one(
+                "sample.wav",
+                vp_benchmark.BackendSpec(
+                    raw="whisper:large-v3", backend="whisper", model="large-v3"),
+                python_exe="python",
+                app_path="voice_pi.py",
+                base_env={},
+            )
+
+        cmd = run.call_args.args[0]
+        env = run.call_args.kwargs["env"]
+        self.assertEqual(cmd, [
+            "python", "voice_pi.py", "--transcribe-file", "sample.wav", "--json"
+        ])
+        self.assertEqual(env["VOICEPI_STT_BACKEND"], "whisper")
+        self.assertEqual(env["VOICEPI_MODEL"], "large-v3")
+        self.assertTrue(event["benchmark_success"])
+        self.assertEqual(event["benchmark_backend_spec"], "whisper:large-v3")
+
+    def test_benchmark_parakeet_model_uses_parakeet_env(self):
+        import vp_benchmark
+
+        completed = types.SimpleNamespace(
+            returncode=1,
+            stdout="",
+            stderr="missing nemo",
+        )
+        with patch("vp_benchmark.subprocess.run", return_value=completed) as run:
+            event = vp_benchmark.run_one(
+                "sample.wav",
+                vp_benchmark.BackendSpec(
+                    raw="parakeet:nvidia/model", backend="parakeet",
+                    model="nvidia/model"),
+                python_exe="python",
+                app_path="voice_pi.py",
+                base_env={},
+            )
+
+        env = run.call_args.kwargs["env"]
+        self.assertEqual(env["VOICEPI_STT_BACKEND"], "parakeet")
+        self.assertEqual(env["VOICEPI_PARAKEET_MODEL"], "nvidia/model")
+        self.assertFalse(event["benchmark_success"])
+        self.assertIn("missing nemo", event["benchmark_error"])
+
+    def test_benchmark_jsonl_writes_one_line_per_file_backend(self):
+        import vp_benchmark
+
+        events = []
+
+        def fake_run_one(audio_file, spec):
+            event = {
+                "event": "benchmark_result",
+                "source_file": str(audio_file),
+                "benchmark_backend_spec": spec.raw,
+                "text": "ok",
+            }
+            events.append(event)
+            return event
+
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            path = f.name
+        try:
+            with patch("vp_benchmark.run_one", side_effect=fake_run_one):
+                results = vp_benchmark.run_benchmark(
+                    ["a.wav", "b.wav"], "whisper,parakeet", output_jsonl=path)
+            with open(path, encoding="utf-8") as f:
+                lines = [json.loads(line) for line in f]
+        finally:
+            os.remove(path)
+
+        self.assertEqual(len(results), 4)
+        self.assertEqual(len(lines), 4)
+        self.assertEqual(lines[0]["benchmark_backend_spec"], "whisper")
+
+    def test_parser_accepts_benchmark_options(self):
+        sys.modules.pop("vp_cli", None)
+        import vp_cli
+
+        args = vp_cli.build_arg_parser().parse_args([
+            "--benchmark-files", "a.wav", "b.wav",
+            "--benchmark-backends", "whisper,parakeet",
+            "--benchmark-jsonl", "out.jsonl",
+        ])
+
+        self.assertEqual(args.benchmark_files, ["a.wav", "b.wav"])
+        self.assertEqual(args.benchmark_backends, "whisper,parakeet")
+        self.assertEqual(args.benchmark_jsonl, "out.jsonl")
+
+
 class DictionaryTests(unittest.TestCase):
     def setUp(self):
         self._old = {k: os.environ.pop(k, None) for k in (
