@@ -8,11 +8,15 @@ how to set it on each platform. Two layers:
 - **CLI flags** — passed to the launcher; override the matching env var for
   that run.
 
-**Precedence:** a CLI flag wins over its env var (the flag's *default* is the
-env var). `--autodetect` overrides `--lang`/`VOICEPI_LANG`. Settings persist
-across upgrades only if they live **outside** the install dir (env vars, your
-own shortcut) — never edit the installed `setup.*`/`voice_pi.py`, a clean
-upgrade wipes them.
+**Precedence:** a CLI flag wins over its env var/config default for that run.
+`--autodetect` overrides `--lang`/`VOICEPI_LANG`. Settings persist across
+upgrades only if they live **outside** the install dir (env vars,
+`%APPDATA%\WhisperDictate\config.json`, your own shortcut) — never edit the
+installed `setup.*`/`voice_pi.py`, a clean upgrade wipes them.
+
+`config.json` is read before env-var fallback for every matching setting, so
+the settings UI can own your normal defaults while old `setx VOICEPI_*` values
+still work for keys that are absent from the JSON file.
 
 ## Cheat sheet — every knob at a glance
 
@@ -212,6 +216,24 @@ dependencies. With the default `VOICEPI_MODEL=large-v3-turbo`, the adapter uses
 `nvidia/parakeet-tdt-0.6b-v3`; set `VOICEPI_PARAKEET_MODEL` or `--model` to use
 another NeMo ASR model. v3 is multilingual and includes Danish, which makes it
 the right first Parakeet candidate for mixed Danish/English dictation.
+
+### Optional PySide/Qt settings UI
+
+Install the optional UI dependency into the same venv, then open the settings
+window:
+
+```powershell
+& "$env:USERPROFILE\voice-pi-venv\Scripts\python.exe" -m pip install `
+  -r "$env:LOCALAPPDATA\Programs\WhisperDictate\requirements-ui.txt"
+& "$env:LOCALAPPDATA\Programs\WhisperDictate\setup.ps1" --settings-ui
+```
+
+The UI edits `%APPDATA%\WhisperDictate\config.json`, keeps a tray icon alive,
+can open the dictionary file, and writes a reload signal after saving. A
+running dictation process applies live-safe changes on the next record
+start/stop: language, inject mode, dictionary, VAD, audio thresholds, prompt,
+JSON/metrics and debug flags. Backend, model, device, compute type and hotkey
+are saved but require restart/model reload.
 
 ### Custom dictionary
 

@@ -9,13 +9,17 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from vp_config import apply_config_to_environ, get_value
+
+apply_config_to_environ()
+
 
 def _truthy(value: str | None) -> bool:
     return (value or "").strip().lower() not in ("", "0", "false", "no", "off")
 
 
 def _int_env(name: str, default: int) -> int:
-    raw = os.environ.get(name)
+    raw = get_value(name)
     if raw is None or not raw.strip():
         return default
     try:
@@ -33,7 +37,7 @@ def _default_path() -> Path:
 
 
 def _candidate_paths() -> list[Path]:
-    raw = os.environ.get("VOICEPI_DICTIONARY")
+    raw = get_value("VOICEPI_DICTIONARY")
     if raw:
         return [Path(p).expanduser() for p in raw.split(os.pathsep) if p.strip()]
 
@@ -273,7 +277,7 @@ class Dictionary:
 
 
 def load_dictionary() -> Dictionary:
-    if not _truthy(os.environ.get("VOICEPI_DICTIONARY_ENABLED", "1")):
+    if not _truthy(get_value("VOICEPI_DICTIONARY_ENABLED", "1")):
         return Dictionary()
 
     terms: list[str] = []

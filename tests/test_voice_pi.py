@@ -15,6 +15,7 @@ from unittest.mock import patch
 def load_voice_pi(cuda_devices: int = 0):
     for name in ("voice_pi", "vp_keymap", "vp_device", "vp_audio", "vp_inject",
                  "vp_cli", "vp_transcribe", "vp_dictionary", "vp_parakeet",
+                 "vp_config", "vp_settings_ui",
                  "ctranslate2", "faster_whisper", "numpy",
                  "sounddevice", "pynput", "pynput.keyboard"):
         sys.modules.pop(name, None)
@@ -52,6 +53,7 @@ def load_voice_pi_realnp():
     heavy/uninstalled deps stubbed. CI installs numpy (see tests workflow)."""
     for name in ("voice_pi", "vp_keymap", "vp_device", "vp_audio", "vp_inject",
                  "vp_cli", "vp_transcribe", "vp_dictionary", "vp_parakeet",
+                 "vp_config", "vp_settings_ui",
                  "ctranslate2", "faster_whisper",
                  "sounddevice", "pynput", "pynput.keyboard"):
         sys.modules.pop(name, None)
@@ -400,10 +402,11 @@ class ArgumentParserTests(unittest.TestCase):
         voice_pi = load_voice_pi()
         parser = voice_pi.build_arg_parser()
 
-        ns = parser.parse_args(["--json", "--doctor"])
+        ns = parser.parse_args(["--json", "--doctor", "--settings-ui"])
 
         self.assertTrue(ns.json)
         self.assertTrue(ns.doctor)
+        self.assertTrue(ns.settings_ui)
 
     def test_dictionary_status_exits_from_parser(self):
         with tempfile.TemporaryDirectory() as d:
@@ -849,6 +852,49 @@ class MetricsTests(unittest.TestCase):
                 os.remove(path)
             except OSError:
                 pass
+
+
+class ConfigTests(unittest.TestCase):
+    def setUp(self):
+        self._old = {k: os.environ.pop(k, None) for k in (
+            "VOICEPI_CONFIG", "VOICEPI_MODEL", "VOICEPI_LANG",
+        )}
+        for n in ("vp_config",):
+            sys.modules.pop(n, None)
+
+    def tearDown(self):
+        for k, v in self._old.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
+        sys.modules.pop("vp_config", None)
+
+    def test_config_value_beats_env_and_persists(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "config.json")
+            os.environ["VOICEPI_CONFIG"] = path
+            os.environ["VOICEPI_LANG"] = "en"
+            import vp_config
+
+            vp_config.save_config({"lang": "da", "model": "large-v3"})
+            self.assertEqual(vp_config.get_value("VOICEPI_LANG"), "da")
+            self.assertEqual(vp_config.get_value("VOICEPI_MODEL"), "large-v3")
+            self.assertEqual(vp_config.apply_config_to_environ(), {"VOICEPI_LANG", "VOICEPI_MODEL"})
+            self.assertEqual(os.environ["VOICEPI_LANG"], "da")
+
+    def test_settings_ui_reports_missing_pyside(self):
+        import vp_settings_ui
+
+        real_import = __import__
+
+        def fake_import(name, *args, **kwargs):
+            if name.startswith("PySide6"):
+                raise ImportError("no PySide")
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=fake_import):
+            with self.assertRaisesRegex(RuntimeError, "requirements-ui.txt"):
+                vp_settings_ui.run_settings_ui()
 
 
 class TranscribeDetailTests(unittest.TestCase):

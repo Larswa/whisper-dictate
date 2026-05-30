@@ -104,6 +104,13 @@ language confidence, dictionary replacements, injection strategy and target
 metadata. This is meant for comparing microphones, models, vocabulary fixes
 and injection behaviour without scraping human log lines.
 
+Runtime configuration can also come from
+`%APPDATA%\WhisperDictate\config.json` (or
+`${XDG_CONFIG_HOME:-~/.config}/whisper-dictate/config.json`). The optional
+PySide settings UI edits that file and touches a reload signal. The dictation
+loop checks for config changes at recording boundaries and applies settings
+that do not require rebuilding the model.
+
 ## Wayland text injection — why evdev keycodes
 
 `ydotool type` on Ubuntu 26.04 (v1.0.4) is not linked against

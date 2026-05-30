@@ -16,6 +16,10 @@ from __future__ import annotations
 
 import os
 
+from vp_config import apply_config_to_environ, get_value
+
+apply_config_to_environ()
+
 VALID_DEVICES = ("auto", "cuda", "cpu")
 
 
@@ -30,7 +34,7 @@ def _resolve_device(want: str) -> tuple[str, str]:
         raise ValueError(f"invalid device '{want}' (expected: "
                          f"{', '.join(VALID_DEVICES)})")
 
-    override = (os.environ.get("VOICEPI_COMPUTE_TYPE") or "").strip() or None
+    override = (get_value("VOICEPI_COMPUTE_TYPE") or "").strip() or None
 
     def _ct(default: str) -> str:
         return override if override else default

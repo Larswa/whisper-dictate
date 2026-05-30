@@ -15,18 +15,21 @@ from typing import Any
 import numpy as np
 
 from vp_audio import _boost_quiet, _looks_like_speech
+from vp_config import apply_config_to_environ, get_value
 from vp_dictionary import DICTIONARY
+
+apply_config_to_environ()
 
 SR = 16000
 
 # beam_size=1 is fastest on CPU; raise to 5 for better accuracy at the
 # cost of 3-4x slower transcription. VOICEPI_BEAM_SIZE=5 is useful on
 # machines without GPU where accuracy matters more than latency.
-BEAM_SIZE = int(os.environ.get("VOICEPI_BEAM_SIZE", "1"))
+BEAM_SIZE = int(get_value("VOICEPI_BEAM_SIZE", "1") or "1")
 
 # Optional context hint fed to Whisper before each utterance. Improves
 # recognition of domain-specific terms (product names, jargon, names).
-INITIAL_PROMPT = os.environ.get("VOICEPI_INITIAL_PROMPT") or None
+INITIAL_PROMPT = get_value("VOICEPI_INITIAL_PROMPT") or None
 
 
 def _parse_temperatures(spec: str | None) -> list[float]:
@@ -46,7 +49,7 @@ def _parse_temperatures(spec: str | None) -> list[float]:
 # Whisper decode-temperature ladder. faster-whisper retries at the next
 # temperature when the previous decode trips an internal no_speech /
 # log_prob threshold. Lock to "0.0" via env for predictable output.
-TEMPERATURES = _parse_temperatures(os.environ.get("VOICEPI_TEMPERATURE"))
+TEMPERATURES = _parse_temperatures(get_value("VOICEPI_TEMPERATURE"))
 
 # Pass `condition_on_previous_text=True` only on utterances longer
 # than CONTEXT_MIN_SECONDS. Defaults to 0 = always False (avoids
@@ -54,13 +57,13 @@ TEMPERATURES = _parse_temperatures(os.environ.get("VOICEPI_TEMPERATURE"))
 # the HALLUCINATIONS set was added to filter). Set to e.g. 5 to opt
 # long utterances into context-conditioned decode, which helps
 # Whisper keep word boundaries coherent across segments.
-CONTEXT_MIN_SECONDS = float(os.environ.get("VOICEPI_CONTEXT_MIN_SECONDS", "0"))
-VAD_THRESHOLD = float(os.environ.get("VOICEPI_VAD_THRESHOLD", "0.3"))
-VAD_MIN_SILENCE_MS = int(os.environ.get("VOICEPI_VAD_MIN_SILENCE_MS", "600"))
-STT_DEBUG = (os.environ.get("VOICEPI_STT_DEBUG") or "").strip().lower() not in (
+CONTEXT_MIN_SECONDS = float(get_value("VOICEPI_CONTEXT_MIN_SECONDS", "0") or "0")
+VAD_THRESHOLD = float(get_value("VOICEPI_VAD_THRESHOLD", "0.3") or "0.3")
+VAD_MIN_SILENCE_MS = int(get_value("VOICEPI_VAD_MIN_SILENCE_MS", "600") or "600")
+STT_DEBUG = (get_value("VOICEPI_STT_DEBUG") or "").strip().lower() not in (
     "", "0", "false", "no", "off")
 VALID_STT_BACKENDS = ("whisper", "parakeet")
-STT_BACKEND = (os.environ.get("VOICEPI_STT_BACKEND") or "whisper").strip().lower()
+STT_BACKEND = (get_value("VOICEPI_STT_BACKEND", "whisper") or "whisper").strip().lower()
 if STT_BACKEND == "faster-whisper":
     STT_BACKEND = "whisper"
 

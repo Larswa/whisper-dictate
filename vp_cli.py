@@ -9,15 +9,18 @@ from __future__ import annotations
 import argparse
 import os
 
+from vp_config import apply_config_to_environ, get_value
 from vp_device import VALID_DEVICES
 
-MODEL_NAME = os.environ.get("VOICEPI_MODEL", "large-v3-turbo")
-DEVICE = os.environ.get("VOICEPI_DEVICE", "auto")
-LANG = os.environ.get("VOICEPI_LANG")  # None -> Whisper auto-detects
-KEY = os.environ.get("VOICEPI_KEY", "ctrl_r")
+apply_config_to_environ()
+
+MODEL_NAME = get_value("VOICEPI_MODEL", "large-v3-turbo")
+DEVICE = get_value("VOICEPI_DEVICE", "auto")
+LANG = get_value("VOICEPI_LANG")  # None -> Whisper auto-detects
+KEY = get_value("VOICEPI_KEY", "ctrl_r")
 
 VALID_INJECT_MODES = ("auto", "type", "paste", "print")
-INJECT_MODE = (os.environ.get("VOICEPI_INJECT_MODE") or "auto").strip().lower()
+INJECT_MODE = (get_value("VOICEPI_INJECT_MODE", "auto") or "auto").strip().lower()
 if INJECT_MODE not in VALID_INJECT_MODES:
     INJECT_MODE = "auto"
 
@@ -25,8 +28,8 @@ if INJECT_MODE not in VALID_INJECT_MODES:
 # Esc presses within QUIT_WINDOW_MS quit the app. Default 3 — avoids
 # accidental shutdown because pynput catches Esc system-wide. Set
 # VOICEPI_QUIT_COUNT=0 to disable; 1 = legacy single-Esc behaviour.
-QUIT_COUNT = int(os.environ.get("VOICEPI_QUIT_COUNT", "3"))
-QUIT_WINDOW_MS = int(os.environ.get("VOICEPI_QUIT_WINDOW_MS", "1500"))
+QUIT_COUNT = int(get_value("VOICEPI_QUIT_COUNT", "3") or "3")
+QUIT_WINDOW_MS = int(get_value("VOICEPI_QUIT_WINDOW_MS", "1500") or "1500")
 
 
 def _truthy_env(name: str) -> bool:
@@ -88,6 +91,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
                          "env VOICEPI_JSON")
     ap.add_argument("--doctor", action="store_true",
                     help="run Linux/Wayland health checks and exit")
+    ap.add_argument("--settings-ui", action="store_true",
+                    help="open the PySide/Qt settings and tray UI, then exit")
     ap.add_argument("--dictionary-status", nargs=0, action=_DictionaryAction,
                     help="show dictionary paths, counts and preview, then exit")
     ap.add_argument("--dictionary-open", nargs=0, action=_DictionaryAction,

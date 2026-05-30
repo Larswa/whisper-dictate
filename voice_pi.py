@@ -102,6 +102,7 @@ from vp_keymap import (  # noqa: E402
 )
 from vp_metrics import append_jsonl, base_event, compact_text, emit_json  # noqa: E402
 from vp_version import VERSION  # noqa: E402
+from vp_config import apply_config_to_environ, config_mtime, effective_config  # noqa: E402
 
 
 _ARECORD_DEVICE: str | None = None  # set once at startup
@@ -176,6 +177,9 @@ class Dictate(InjectMixin):
         self.device = device
         self.compute_type = compute_type
         self.model_load_s = model_load_s
+        self._config_mtime = config_mtime()
+        self._effective_config = effective_config()
+        self._restart_required_reported = False
         self.frames: list[np.ndarray] = []
         self.recording = False
         self._record_started = 0.0
@@ -201,6 +205,58 @@ class Dictate(InjectMixin):
         else:
             print("[audio] using sounddevice (direct ALSA)", flush=True)
 
+    def _reload_live_config_if_changed(self) -> None:
+        mt = config_mtime()
+        if mt <= self._config_mtime:
+            return
+        self._config_mtime = mt
+        apply_config_to_environ()
+        after = effective_config()
+
+        restart_keys = {"stt_backend", "model", "parakeet_model", "device", "compute_type", "key"}
+        changed_restart = [k for k in sorted(restart_keys) if self._effective_config.get(k) != after.get(k)]
+        if changed_restart and not self._restart_required_reported:
+            print(
+                "[config] updated settings require restart/model reload: "
+                + ", ".join(changed_restart),
+                flush=True,
+            )
+            self._restart_required_reported = True
+
+        self.mode = (after.get("inject_mode") or self.mode or "auto").lower()
+        self.json_output = (after.get("json_output") or "").lower() not in (
+            "", "0", "false", "no", "off")
+        self.metrics_jsonl = after.get("metrics_jsonl") or None
+
+        new_lang = after.get("lang") or None
+        if new_lang != self.lang:
+            self.lang = new_lang
+            xkb = _detect_xkb_layout(self.lang) or ''
+            self._xkb_layout = xkb
+            self._keycode_map = _LAYOUT_KEYCODES.get(xkb, {})
+            if self._keycode_map:
+                print(f"[inject] keycode map: {xkb} ({len(self._keycode_map)} tegn)", flush=True)
+
+        import vp_audio
+        import vp_dictionary
+        import vp_transcribe
+
+        vp_audio.TARGET_DBFS = float(after.get("target_dbfs", "-20"))
+        vp_audio.MIN_INPUT_DBFS = float(after.get("min_input_dbfs", "-55"))
+        vp_audio.MIN_INPUT_SNR_DB = float(after.get("min_snr_db", "6"))
+
+        vp_transcribe.BEAM_SIZE = int(after.get("beam_size", "1"))
+        vp_transcribe.TEMPERATURES = vp_transcribe._parse_temperatures(after.get("temperature"))
+        vp_transcribe.CONTEXT_MIN_SECONDS = float(after.get("context_min_seconds", "0"))
+        vp_transcribe.VAD_THRESHOLD = float(after.get("vad_threshold", "0.3"))
+        vp_transcribe.VAD_MIN_SILENCE_MS = int(after.get("vad_min_silence_ms", "600"))
+        vp_transcribe.INITIAL_PROMPT = after.get("initial_prompt") or None
+        vp_transcribe.STT_DEBUG = (after.get("stt_debug") or "").lower() not in (
+            "", "0", "false", "no", "off")
+        vp_dictionary.DICTIONARY = vp_dictionary.load_dictionary()
+        self._effective_config = after
+        print("[config] reloaded live settings", flush=True)
+
     def _cb(self, indata, frames, t, status):
         if self.recording:
             self.frames.append(indata.copy())
@@ -218,6 +274,7 @@ class Dictate(InjectMixin):
     def _start(self):
         if self.recording:
             return
+        self._reload_live_config_if_changed()
         self._capture_target_window()
         self.frames = []
         self.recording = True
@@ -242,6 +299,7 @@ class Dictate(InjectMixin):
     def _stop_and_transcribe(self):
         if not self.recording:
             return
+        self._reload_live_config_if_changed()
         self.recording = False
         if self._arecord_proc:
             self._arecord_proc.terminate()
@@ -471,6 +529,12 @@ if __name__ == "__main__":
         print(f"whisper-dictate {VERSION}", flush=True)
     ap = build_arg_parser()
     a = ap.parse_args()
+    if a.settings_ui:
+        from vp_settings_ui import run_settings_ui
+        try:
+            raise SystemExit(run_settings_ui())
+        except RuntimeError as e:
+            ap.error(str(e))
     if a.doctor:
         from vp_doctor import run_doctor
         raise SystemExit(run_doctor())

@@ -52,6 +52,7 @@ jobs:
             cp voice_pi.py vp_*.py README.md LICENSE "$d/"
             [ -f dictionary.example.json ] && cp dictionary.example.json "$d/"
             [ -f requirements-parakeet.txt ] && cp requirements-parakeet.txt "$d/"
+            [ -f requirements-ui.txt ] && cp requirements-ui.txt "$d/"
             mkdir -p "$d/scripts"
             cp scripts/inject-smoke.py "$d/scripts/"
             printf "%s\n" "$VERSION" > "$d/VERSION"

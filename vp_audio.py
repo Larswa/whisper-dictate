@@ -10,16 +10,20 @@ import os
 
 import numpy as np
 
+from vp_config import apply_config_to_environ, get_value
+
+apply_config_to_environ()
+
 # Target loudness (dBFS) quiet input is boosted toward before Whisper
 # sees it. Soft voiced speech lands at -35..-45 dBFS where Whisper's
 # no-speech gate eats it; normalising to ~-20 recovers it without
 # clipping. Lower (e.g. -16) = boost harder.
-TARGET_DBFS = float(os.environ.get("VOICEPI_TARGET_DBFS", "-20"))
+TARGET_DBFS = float(get_value("VOICEPI_TARGET_DBFS", "-20") or "-20")
 # Raw-input gate before gain boost. Without this, near-silence gets boosted
 # into Whisper's comfort range; with a fixed language hint, Danish silence
 # often decodes as a plausible short phrase such as "Tak."
-MIN_INPUT_DBFS = float(os.environ.get("VOICEPI_MIN_INPUT_DBFS", "-55"))
-MIN_INPUT_SNR_DB = float(os.environ.get("VOICEPI_MIN_SNR_DB", "6"))
+MIN_INPUT_DBFS = float(get_value("VOICEPI_MIN_INPUT_DBFS", "-55") or "-55")
+MIN_INPUT_SNR_DB = float(get_value("VOICEPI_MIN_SNR_DB", "6") or "6")
 
 
 def _noise_snr(a: np.ndarray) -> tuple[float, float]:

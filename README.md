@@ -328,6 +328,13 @@ Optional Parakeet backend: install `requirements-parakeet.txt`, then set
 `VOICEPI_STT_BACKEND=parakeet`. NeMo is imported lazily, so default Whisper
 runs and `--doctor` do not need Parakeet dependencies.
 
+Optional PySide/Qt settings UI: install `requirements-ui.txt`, then run
+`setup.ps1 --settings-ui`. The UI writes
+`%APPDATA%\WhisperDictate\config.json`, keeps a tray icon alive, and signals
+the running dictation process to reload live-safe settings such as language,
+dictionary, VAD, audio thresholds and injection mode. Backend/model/device
+changes are saved but require restart/model reload.
+
 The `[gate]` line shows whether the raw input was accepted before gain
 boost. The `[cap]` line prints loudness, gain, noise floor and **SNR** per
 accepted utterance — `snr` tells you if the mic is the bottleneck: ≳25 dB
