@@ -167,7 +167,8 @@ $parakeetReq = Join-Path $here 'requirements-parakeet.txt'
 $parakeetStamp = Join-Path $venv '.requirements-parakeet.sha256'
 $pipProgressBar = if ($env:VOICEPI_MANAGED_BY_UI) { "raw" } elseif ($env:PIP_PROGRESS_BAR) { $env:PIP_PROGRESS_BAR } else { "off" }
 $pipInstallArgs = @("--disable-pip-version-check", "--progress-bar", $pipProgressBar)
-$torchCudaIndex = "https://download.pytorch.org/whl/cu121"
+$torchCudaIndex = "https://download.pytorch.org/whl/cu126"
+$torchCudaPackages = @("torch==2.11.0+cu126", "torchaudio==2.11.0+cu126")
 
 function Test-MsvcPy312($exe) {
   if (-not (Test-Path $exe)) { return $false }
@@ -227,11 +228,6 @@ if ($wantsParakeet) {
   if (-not (Test-Path $parakeetReq)) {
     throw "VOICEPI_STT_BACKEND=parakeet is configured, but requirements-parakeet.txt is missing next to setup.ps1"
   }
-  if ($wantsParakeetCuda -and -not (Test-ParakeetCudaReady)) {
-    Write-Host "Installing CUDA PyTorch + torchaudio for NVIDIA Parakeet..." -ForegroundColor Cyan
-    & $venvPy -m pip install @pipInstallArgs --upgrade --force-reinstall --no-deps torch torchaudio --index-url $torchCudaIndex
-    if ($LASTEXITCODE -ne 0) { throw "CUDA PyTorch install failed (see error above)" }
-  }
   $parakeetHash = Get-VoicePiFileHash $parakeetReq
   $storedParakeetHash = if (Test-Path $parakeetStamp) { (Get-Content $parakeetStamp -Raw).Trim() } else { '' }
   if (($storedParakeetHash -ne $parakeetHash) -or -not (Test-ParakeetReady)) {
@@ -239,6 +235,11 @@ if ($wantsParakeet) {
     & $venvPy -m pip install @pipInstallArgs -r $parakeetReq
     if ($LASTEXITCODE -ne 0) { throw "Parakeet dependency install failed (see error above)" }
     Set-Content -Path $parakeetStamp -Value $parakeetHash -Encoding ASCII
+  }
+  if ($wantsParakeetCuda -and -not (Test-ParakeetCudaReady)) {
+    Write-Host "Installing CUDA PyTorch + torchaudio for NVIDIA Parakeet..." -ForegroundColor Cyan
+    & $venvPy -m pip install @pipInstallArgs --upgrade --force-reinstall --no-deps @torchCudaPackages --index-url $torchCudaIndex
+    if ($LASTEXITCODE -ne 0) { throw "CUDA PyTorch install failed (see error above)" }
   }
 }
 

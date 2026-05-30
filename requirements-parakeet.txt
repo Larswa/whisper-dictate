@@ -2,8 +2,10 @@
 # Install after the normal CPU/GPU requirements when you want:
 #   VOICEPI_STT_BACKEND=parakeet
 #
-# On Windows, plain PyPI may install CPU-only torch. setup.ps1 installs
-# CUDA PyTorch first when Parakeet + CUDA is configured:
-#   python -m pip install --upgrade --force-reinstall torch torchaudio \
-#     --index-url https://download.pytorch.org/whl/cu121
+# On Windows, plain PyPI may install CPU-only torch or a torch/torchaudio
+# mismatch. setup.ps1 installs/repairs matching CUDA wheels after NeMo when
+# Parakeet + CUDA is configured:
+#   python -m pip install --upgrade --force-reinstall --no-deps \
+#     torch==2.11.0+cu126 torchaudio==2.11.0+cu126 \
+#     --index-url https://download.pytorch.org/whl/cu126
 nemo_toolkit[asr]

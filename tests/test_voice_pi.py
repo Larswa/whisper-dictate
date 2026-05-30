@@ -1202,9 +1202,18 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
 
         self.assertIn("function Test-ParakeetCudaReady", script)
         self.assertIn("import torchaudio", script)
-        self.assertIn("https://download.pytorch.org/whl/cu121", script)
-        self.assertIn("--force-reinstall --no-deps torch torchaudio --index-url $torchCudaIndex", script)
+        self.assertIn("https://download.pytorch.org/whl/cu126", script)
+        self.assertIn('"torch==2.11.0+cu126", "torchaudio==2.11.0+cu126"', script)
+        self.assertIn("--force-reinstall --no-deps @torchCudaPackages --index-url $torchCudaIndex", script)
         self.assertNotIn("--force-reinstall torch torchaudio", script)
+
+    def test_setup_repairs_cuda_torch_after_parakeet_dependencies(self):
+        with open("setup.ps1", encoding="utf-8") as f:
+            script = f.read()
+
+        parakeet_install = script.index("Installing optional NVIDIA Parakeet dependencies")
+        cuda_repair = script.index("Installing CUDA PyTorch + torchaudio for NVIDIA Parakeet")
+        self.assertLess(parakeet_install, cuda_repair)
 
     def test_setup_propagates_voice_pi_exit_code(self):
         with open("setup.ps1", encoding="utf-8") as f:
