@@ -19,7 +19,7 @@ def _missing_pyside_error() -> RuntimeError:
 
 def run_settings_ui() -> int:
     try:
-        from PySide6.QtCore import QProcess, QProcessEnvironment, QTimer, Qt
+        from PySide6.QtCore import QLockFile, QProcess, QProcessEnvironment, QTimer, Qt
         from PySide6.QtGui import QAction, QIcon, QTextCursor
         from PySide6.QtWidgets import (
             QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout,
@@ -391,7 +391,20 @@ def run_settings_ui() -> int:
                 app.quit()
 
     app = QApplication.instance() or QApplication(sys.argv)
+    app.setApplicationDisplayName("whisper-dictate")
     app.setQuitOnLastWindowClosed(False)
+
+    lock_path = config_path().with_name("settings-ui.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    instance_lock = QLockFile(str(lock_path))
+    if not instance_lock.tryLock(100):
+        QMessageBox.information(
+            None,
+            "whisper-dictate",
+            "whisper-dictate Settings UI is already running.",
+        )
+        return 0
+
     win = SettingsWindow()
     icon = app.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
     if not isinstance(icon, QIcon) or icon.isNull():
@@ -415,4 +428,7 @@ def run_settings_ui() -> int:
     menu.addAction(quit_action)
     tray.show()
     win.show()
+    win.raise_()
+    win.activateWindow()
+    QTimer.singleShot(250, lambda: (win.show(), win.raise_(), win.activateWindow()))
     return int(app.exec())

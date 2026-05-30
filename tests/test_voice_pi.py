@@ -1224,6 +1224,16 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
         self.assertIn('env.insert("PYTHONIOENCODING", "utf-8")', script)
         self.assertIn('raw.decode("utf-8")', script)
 
+    def test_settings_ui_has_single_instance_guard_and_foreground_show(self):
+        with open("vp_settings_ui.py", encoding="utf-8") as f:
+            script = f.read()
+
+        self.assertIn("QLockFile", script)
+        self.assertIn("settings-ui.lock", script)
+        self.assertIn("Settings UI is already running", script)
+        self.assertIn("win.raise_()", script)
+        self.assertIn("win.activateWindow()", script)
+
     def test_settings_ui_launcher_bootstraps_before_installing_ui_deps(self):
         with open("settings-ui.ps1", encoding="utf-8") as f:
             script = f.read()
