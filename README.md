@@ -361,6 +361,9 @@ python voice_pi.py --transcribe-file sample.wav --json
 python voice_pi.py --benchmark-files sample.wav `
   --benchmark-backends "whisper:large-v3,parakeet:nvidia/parakeet-tdt-0.6b-v3" `
   --benchmark-jsonl benchmark.jsonl
+python voice_pi.py --benchmark-corpus benchmark\corpus.json `
+  --benchmark-backends "whisper:large-v3,parakeet:nvidia/parakeet-tdt-0.6b-v3" `
+  --benchmark-jsonl benchmark\results.jsonl
 python voice_pi.py --calibrate-mic 5
 python voice_pi.py --calibrate-file sample.wav --json
 python voice_pi.py --history-last
@@ -370,6 +373,9 @@ python voice_pi.py --history-copy-last
 16-bit WAV works without extra tools. Other formats such as mp3/m4a require
 `ffmpeg` on `PATH`. Benchmark mode runs each backend/model spec in an isolated
 child process and writes one JSONL result per file/backend, including failures.
+The corpus manifest in `benchmark/corpus.json` adds reference text, WER/CER and
+expected technical-term hits/misses. Record missing local corpus audio with
+`py -3.12 scripts\record-corpus.py --manifest benchmark\corpus.json --seconds 7`.
 Calibration prints raw dBFS, noise floor, SNR, peak and recommended audio
 threshold settings without loading an STT model.
 

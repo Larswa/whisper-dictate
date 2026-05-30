@@ -1887,6 +1887,38 @@ class TranscribeFileTests(unittest.TestCase):
 
 
 class BenchmarkTests(unittest.TestCase):
+    def test_corpus_manifest_loads_and_scores_terms(self):
+        import vp_corpus
+
+        item = vp_corpus.load_corpus("benchmark/corpus.json")[0]
+
+        self.assertEqual(item.id, "da-short-001")
+        self.assertTrue(str(item.audio).endswith("benchmark\\audio\\da-short-001.wav") or
+                        str(item.audio).endswith("benchmark/audio/da-short-001.wav"))
+        self.assertEqual(vp_corpus.wer("Claude Code virker", "Claude virker"), 1 / 3)
+        report = vp_corpus.term_report(["Claude Code", "Codex"], "Claude Code works")
+        self.assertEqual(report["hits"], ["Claude Code"])
+        self.assertEqual(report["misses"], ["Codex"])
+
+    def test_corpus_annotates_benchmark_event(self):
+        import vp_corpus
+
+        item = vp_corpus.CorpusItem(
+            id="x",
+            text="Claude Code and Codex",
+            audio=Path("x.wav"),
+            language="en",
+            category="tech",
+            terms=("Claude Code", "Codex"),
+        )
+        event = vp_corpus.annotate_event({"text": "Claude Code and codec"}, item)
+
+        self.assertEqual(event["corpus_id"], "x")
+        self.assertEqual(event["corpus_language"], "en")
+        self.assertGreater(event["wer"], 0)
+        self.assertEqual(event["term_hits"], ["Claude Code"])
+        self.assertEqual(event["term_misses"], ["Codex"])
+
     def test_parse_backend_specs_supports_models(self):
         import vp_benchmark
 
@@ -1987,17 +2019,52 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(len(lines), 4)
         self.assertEqual(lines[0]["benchmark_backend_spec"], "whisper")
 
+    def test_benchmark_corpus_writes_skipped_rows_for_missing_audio(self):
+        import vp_benchmark
+
+        manifest = {
+            "items": [{
+                "id": "sample",
+                "language": "en",
+                "category": "unit",
+                "text": "Hello Codex",
+                "audio": "missing.wav",
+                "terms": ["Codex"],
+            }]
+        }
+        with tempfile.TemporaryDirectory() as d:
+            manifest_path = os.path.join(d, "corpus.json")
+            output_path = os.path.join(d, "out.jsonl")
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f)
+
+            results = vp_benchmark.run_benchmark(
+                None,
+                "whisper",
+                output_jsonl=output_path,
+                corpus_manifest=manifest_path,
+            )
+            with open(output_path, encoding="utf-8") as f:
+                rows = [json.loads(line) for line in f]
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(rows[0]["corpus_id"], "sample")
+        self.assertTrue(rows[0]["benchmark_skipped"])
+        self.assertEqual(rows[0]["term_misses"], ["Codex"])
+
     def test_parser_accepts_benchmark_options(self):
         sys.modules.pop("vp_cli", None)
         import vp_cli
 
         args = vp_cli.build_arg_parser().parse_args([
             "--benchmark-files", "a.wav", "b.wav",
+            "--benchmark-corpus", "benchmark/corpus.json",
             "--benchmark-backends", "whisper,parakeet",
             "--benchmark-jsonl", "out.jsonl",
         ])
 
         self.assertEqual(args.benchmark_files, ["a.wav", "b.wav"])
+        self.assertEqual(args.benchmark_corpus, "benchmark/corpus.json")
         self.assertEqual(args.benchmark_backends, "whisper,parakeet")
         self.assertEqual(args.benchmark_jsonl, "out.jsonl")
 

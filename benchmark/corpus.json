@@ -1,0 +1,216 @@
+{
+  "version": 1,
+  "audio_dir": "audio",
+  "items": [
+    {
+      "id": "da-short-001",
+      "language": "da",
+      "category": "short_danish",
+      "text": "Okay, lad os prøve at køre testen igen.",
+      "terms": []
+    },
+    {
+      "id": "da-short-002",
+      "language": "da",
+      "category": "short_danish",
+      "text": "Kan du lige genstarte Whisper Dictate processen?",
+      "terms": ["Whisper Dictate"]
+    },
+    {
+      "id": "da-tech-001",
+      "language": "da",
+      "category": "mixed_technical",
+      "text": "Skift backend til Parakeet og behold dictionary replacements slået til.",
+      "terms": ["Parakeet", "dictionary", "replacements"]
+    },
+    {
+      "id": "da-tech-002",
+      "language": "da",
+      "category": "mixed_technical",
+      "text": "Commit ændringen, push til main og opret et nyt git tag.",
+      "terms": ["commit", "push", "main", "git tag"]
+    },
+    {
+      "id": "da-tech-003",
+      "language": "da",
+      "category": "mixed_technical",
+      "text": "Tjek om Kubernetes clusteret kører i dev eller prod.",
+      "terms": ["Kubernetes", "cluster", "dev", "prod"]
+    },
+    {
+      "id": "da-tech-004",
+      "language": "da",
+      "category": "mixed_technical",
+      "text": "Merge branchen og deploy den nye version bagefter.",
+      "terms": ["merge", "deploy"]
+    },
+    {
+      "id": "da-product-001",
+      "language": "da",
+      "category": "product_names",
+      "text": "Claude Code og Codex skal begge forstå den her prompt.",
+      "terms": ["Claude Code", "Codex"]
+    },
+    {
+      "id": "da-product-002",
+      "language": "da",
+      "category": "product_names",
+      "text": "OpenClaw, MCP, RAG og vLLM skal blive stående som tekniske termer.",
+      "terms": ["OpenClaw", "MCP", "RAG", "vLLM"]
+    },
+    {
+      "id": "da-ui-001",
+      "language": "da",
+      "category": "ui_workflow",
+      "text": "Åbn settings UI og skift inject mode fra type til auto.",
+      "terms": ["settings UI", "inject mode", "type", "auto"]
+    },
+    {
+      "id": "da-ui-002",
+      "language": "da",
+      "category": "ui_workflow",
+      "text": "Jeg vil gerne se signal to noise ratio tydeligt i terminalen.",
+      "terms": ["signal to noise ratio"]
+    },
+    {
+      "id": "da-long-001",
+      "language": "da",
+      "category": "long_danish",
+      "text": "Det vigtigste er, at dikteringen bliver skrevet ind der, hvor cursoren står, uden at vi skal kopiere og indsætte manuelt.",
+      "terms": []
+    },
+    {
+      "id": "da-long-002",
+      "language": "da",
+      "category": "long_danish",
+      "text": "Hvis modellen bliver usikker, skal den hellere bevare de tekniske ord end prøve at oversætte dem til almindeligt dansk.",
+      "terms": []
+    },
+    {
+      "id": "en-short-001",
+      "language": "en",
+      "category": "short_english",
+      "text": "Please check the latest build and tell me whether the tests are green.",
+      "terms": []
+    },
+    {
+      "id": "en-short-002",
+      "language": "en",
+      "category": "short_english",
+      "text": "Create a pull request with a concise summary and the test results.",
+      "terms": ["pull request"]
+    },
+    {
+      "id": "en-tech-001",
+      "language": "en",
+      "category": "english_technical",
+      "text": "Claude Code, Codex and GitHub Actions should all keep their exact capitalization.",
+      "terms": ["Claude Code", "Codex", "GitHub Actions"]
+    },
+    {
+      "id": "en-tech-002",
+      "language": "en",
+      "category": "english_technical",
+      "text": "Run the benchmark with Whisper large v3 and NVIDIA Parakeet.",
+      "terms": ["Whisper", "large v3", "NVIDIA Parakeet"]
+    },
+    {
+      "id": "en-terminal-001",
+      "language": "en",
+      "category": "terminal",
+      "text": "Set VOICEPI STT BACKEND to parakeet and restart the runtime.",
+      "terms": ["VOICEPI", "STT", "BACKEND", "parakeet"]
+    },
+    {
+      "id": "en-terminal-002",
+      "language": "en",
+      "category": "terminal",
+      "text": "Run git status, git diff and then git push origin main.",
+      "terms": ["git status", "git diff", "git push origin main"]
+    },
+    {
+      "id": "mix-001",
+      "language": "da",
+      "category": "mixed_language",
+      "text": "Jeg tester lige Codex versus Claude Code i Windows Terminal.",
+      "terms": ["Codex", "Claude Code", "Windows Terminal"]
+    },
+    {
+      "id": "mix-002",
+      "language": "da",
+      "category": "mixed_language",
+      "text": "Kan du lave en release, bygge en Windows installer og opdatere changeloggen?",
+      "terms": ["release", "Windows installer", "changelog"]
+    },
+    {
+      "id": "mix-003",
+      "language": "da",
+      "category": "mixed_language",
+      "text": "Jeg vil gerne teste Qwen to punkt fem tre B via Ollama.",
+      "terms": ["Qwen", "Ollama"]
+    },
+    {
+      "id": "mix-004",
+      "language": "da",
+      "category": "mixed_language",
+      "text": "Brug RTX fem tusind og tres serveren til remote local post processing.",
+      "terms": ["RTX", "remote local post processing"]
+    },
+    {
+      "id": "noise-001",
+      "language": "da",
+      "category": "noise_sensitive",
+      "text": "Det her er en kort test med lav stemme og lidt baggrundsstøj.",
+      "terms": []
+    },
+    {
+      "id": "noise-002",
+      "language": "en",
+      "category": "noise_sensitive",
+      "text": "This is a quiet English test with technical product names.",
+      "terms": []
+    },
+    {
+      "id": "punct-001",
+      "language": "da",
+      "category": "punctuation",
+      "text": "Lav det som bullets: første punkt, andet punkt og tredje punkt.",
+      "terms": ["bullets"]
+    },
+    {
+      "id": "punct-002",
+      "language": "en",
+      "category": "punctuation",
+      "text": "New line, first item, new line, second item, full stop.",
+      "terms": []
+    },
+    {
+      "id": "names-001",
+      "language": "da",
+      "category": "names",
+      "text": "Factus Consulting, TwoDay og Hetzner skal skrives korrekt.",
+      "terms": ["Factus Consulting", "TwoDay", "Hetzner"]
+    },
+    {
+      "id": "names-002",
+      "language": "da",
+      "category": "names",
+      "text": "Lead dev skal ikke blive til lead death eller lead død.",
+      "terms": ["lead dev"]
+    },
+    {
+      "id": "wayland-001",
+      "language": "da",
+      "category": "layout",
+      "text": "Æ, ø og å skal stadig kunne skrives korrekt på dansk layout.",
+      "terms": []
+    },
+    {
+      "id": "wayland-002",
+      "language": "en",
+      "category": "layout",
+      "text": "I'm testing English punctuation on a Danish keyboard layout.",
+      "terms": []
+    }
+  ]
+}

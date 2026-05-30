@@ -103,8 +103,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--benchmark-files", nargs="+", metavar="PATH",
                     help="run one or more audio files through benchmark "
                          "backend specs, then exit")
+    ap.add_argument("--benchmark-corpus", metavar="PATH",
+                    help="run benchmark entries from a corpus manifest, "
+                         "annotating results with reference text, WER/CER "
+                         "and term hits")
     ap.add_argument("--benchmark-backends", default=None,
-                    help="comma-separated backend specs for --benchmark-files, "
+                    help="comma-separated backend specs for benchmark runs, "
                          "for example whisper:large-v3,parakeet")
     ap.add_argument("--benchmark-jsonl", default=None,
                     help="append benchmark JSONL results to this path instead "

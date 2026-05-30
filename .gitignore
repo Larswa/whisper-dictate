@@ -18,3 +18,7 @@ Thumbs.db
 
 # Claude Code settings (personal, machine-local — never commit)
 .claude/
+
+# Local benchmark recordings/results
+benchmark/audio/
+benchmark/*.jsonl

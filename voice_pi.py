@@ -616,13 +616,14 @@ if __name__ == "__main__":
     if a.doctor:
         from vp_doctor import run_doctor
         raise SystemExit(run_doctor())
-    if a.benchmark_files:
+    if a.benchmark_files or a.benchmark_corpus:
         from vp_benchmark import run_benchmark
         try:
             run_benchmark(
                 a.benchmark_files,
                 a.benchmark_backends,
                 output_jsonl=a.benchmark_jsonl,
+                corpus_manifest=a.benchmark_corpus,
             )
         except Exception as e:  # noqa: BLE001 - argparse should report cleanly
             ap.error(str(e))
