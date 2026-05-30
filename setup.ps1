@@ -107,6 +107,24 @@ function Test-WantsParakeet {
   return $false
 }
 
+function Test-LaunchesDictation([string[]]$argv) {
+  foreach ($arg in $argv) {
+    if ($arg -in @(
+      '--settings-ui',
+      '--doctor',
+      '--dictionary-status',
+      '--dictionary-open',
+      '--dictionary-add',
+      '--dictionary-replace',
+      '--help',
+      '-h'
+    )) {
+      return $false
+    }
+  }
+  return $true
+}
+
 function Test-ParakeetReady {
   if (-not (Test-Path $venvPy)) { return $false }
   & $venvPy -c "import nemo.collections.asr" 2>$null
@@ -115,7 +133,7 @@ function Test-ParakeetReady {
 
 $req = Select-Requirements $runArgs
 $reqHash = (Get-FileHash -Algorithm SHA256 $req).Hash
-$wantsParakeet = Test-WantsParakeet
+$wantsParakeet = (Test-LaunchesDictation $runArgs) -and (Test-WantsParakeet)
 $parakeetReq = Join-Path $here 'requirements-parakeet.txt'
 $parakeetStamp = Join-Path $venv '.requirements-parakeet.sha256'
 
