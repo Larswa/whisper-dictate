@@ -156,6 +156,51 @@ class AudioDspTests(unittest.TestCase):
             out = self.vp._boost_quiet(a)
         self.assertLessEqual(float(np.max(np.abs(out))), 0.99 + 1e-6)
 
+    def test_cap_line_is_bold_on_interactive_terminal(self):
+        import vp_audio
+
+        class Tty:
+            def isatty(self):
+                return True
+
+        with patch.object(vp_audio.sys, "stdout", Tty()):
+            self.assertEqual(
+                vp_audio._highlight_cap_line("[cap] raw=-20dBFS"),
+                "\033[1m[cap] raw=-20dBFS\033[0m",
+            )
+
+    def test_cap_line_stays_plain_for_piped_output(self):
+        import vp_audio
+
+        class Pipe:
+            def isatty(self):
+                return False
+
+        with patch.object(vp_audio.sys, "stdout", Pipe()):
+            self.assertEqual(
+                vp_audio._highlight_cap_line("[cap] raw=-20dBFS"),
+                "[cap] raw=-20dBFS",
+            )
+
+    def test_cap_line_highlight_respects_no_color(self):
+        import vp_audio
+
+        class Tty:
+            def isatty(self):
+                return True
+
+        with patch.object(vp_audio.sys, "stdout", Tty()):
+            with _env(NO_COLOR="1"):
+                self.assertEqual(
+                    vp_audio._highlight_cap_line("[cap] raw=-20dBFS"),
+                    "[cap] raw=-20dBFS",
+                )
+            with _env(VOICEPI_NO_COLOR="1"):
+                self.assertEqual(
+                    vp_audio._highlight_cap_line("[cap] raw=-20dBFS"),
+                    "[cap] raw=-20dBFS",
+                )
+
     # --- _looks_like_speech ---
     def test_looks_like_speech_rejects_too_quiet(self):
         a = self.np.full(1920, 1e-4, dtype=self.np.float32)

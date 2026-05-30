@@ -7,6 +7,7 @@ must keep those green unchanged.
 from __future__ import annotations
 
 import os
+import sys
 
 import numpy as np
 
@@ -24,6 +25,17 @@ TARGET_DBFS = float(get_value("VOICEPI_TARGET_DBFS", "-20") or "-20")
 # often decodes as a plausible short phrase such as "Tak."
 MIN_INPUT_DBFS = float(get_value("VOICEPI_MIN_INPUT_DBFS", "-55") or "-55")
 MIN_INPUT_SNR_DB = float(get_value("VOICEPI_MIN_SNR_DB", "6") or "6")
+_ANSI_BOLD = "\033[1m"
+_ANSI_RESET = "\033[0m"
+
+
+def _highlight_cap_line(line: str) -> str:
+    if os.environ.get("NO_COLOR") or os.environ.get("VOICEPI_NO_COLOR"):
+        return line
+    isatty = getattr(sys.stdout, "isatty", None)
+    if not callable(isatty) or not isatty():
+        return line
+    return f"{_ANSI_BOLD}{line}{_ANSI_RESET}"
 
 
 def _noise_snr(a: np.ndarray) -> tuple[float, float]:
@@ -54,8 +66,9 @@ def _boost_quiet(a: np.ndarray) -> np.ndarray:
     peak = float(np.max(np.abs(a)) or 1e-9)
     gain = min(gain, 0.99 / peak)  # never clip
     noise_dbfs, snr_db = _noise_snr(a)
-    print(f"[cap] raw={cur_dbfs:.0f}dBFS peak={peak:.3f} gain={gain:.1f}x "
-          f"noise={noise_dbfs:.0f}dBFS snr={snr_db:.0f}dB", flush=True)
+    line = (f"[cap] raw={cur_dbfs:.0f}dBFS peak={peak:.3f} gain={gain:.1f}x "
+            f"noise={noise_dbfs:.0f}dBFS snr={snr_db:.0f}dB")
+    print(_highlight_cap_line(line), flush=True)
     return (a * gain).astype(np.float32)
 
 
