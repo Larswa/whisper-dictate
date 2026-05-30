@@ -8,16 +8,31 @@ $logDir = Join-Path $env:APPDATA 'WhisperDictate'
 $log = Join-Path $logDir 'settings-ui.log'
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
+function Show-LaunchError([string]$message) {
+  try {
+    $wshell = New-Object -ComObject WScript.Shell
+    $null = $wshell.Popup($message, 0, 'whisper-dictate', 0x10)
+  } catch {
+    Write-Host $message
+  }
+}
+
 try {
+  "[$(Get-Date -Format o)] starting settings UI launcher" | Out-File -FilePath $log -Append -Encoding utf8
+  $env:PIP_PROGRESS_BAR = 'off'
   if (-not (Test-Path $venvPy)) {
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File (Join-Path $here 'setup.ps1') --settings-ui
+    "[$(Get-Date -Format o)] venv missing; running setup.ps1 --settings-ui" | Out-File -FilePath $log -Append -Encoding utf8
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File (Join-Path $here 'setup.ps1') --settings-ui *>> $log
     exit $LASTEXITCODE
   }
-  & $venvPy -c "import PySide6" 2>$null
+  & $venvPy -c "import PySide6" *> $null
   if ($LASTEXITCODE -ne 0 -and (Test-Path $uiReq)) {
-    & $venvPy -m pip install -r $uiReq *>> $log
+    "[$(Get-Date -Format o)] installing UI dependencies" | Out-File -FilePath $log -Append -Encoding utf8
+    & $venvPy -m pip install --disable-pip-version-check --progress-bar off -r $uiReq *>> $log
   }
   & $venvPy $app --settings-ui *>> $log
 } catch {
-  $_ | Out-File -FilePath $log -Append -Encoding utf8
+  $msg = "Could not start whisper-dictate Settings UI. See log: $log`n`n$_"
+  $msg | Out-File -FilePath $log -Append -Encoding utf8
+  Show-LaunchError $msg
 }

@@ -1151,6 +1151,13 @@ class WindowsLauncherRegressionTests(unittest.TestCase):
             script,
         )
 
+    def test_parakeet_readiness_check_does_not_import_nemo(self):
+        with open("setup.ps1", encoding="utf-8") as f:
+            script = f.read()
+
+        self.assertIn("importlib.util.find_spec('nemo.collections.asr')", script)
+        self.assertNotIn('-c "import nemo.collections.asr"', script)
+
 
 class DictionaryTests(unittest.TestCase):
     def setUp(self):

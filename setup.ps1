@@ -127,7 +127,7 @@ function Test-LaunchesDictation([string[]]$argv) {
 
 function Test-ParakeetReady {
   if (-not (Test-Path $venvPy)) { return $false }
-  & $venvPy -c "import nemo.collections.asr" 2>$null
+  & $venvPy -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('nemo.collections.asr') else 1)" *> $null
   return ($LASTEXITCODE -eq 0)
 }
 
